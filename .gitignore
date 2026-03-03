@@ -1,0 +1,16 @@
+node_modules/
+.next/
+dist/
+build/
+*.log
+.env.local
+.env.production.local
+.env.production
+bun.lock
+.DS_Store
+.cache/
+.vscode/
+.idea/
+db/custom.db
+public/uploads/*
+!public/uploads/.gitkeep

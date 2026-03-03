@@ -1,0 +1,91 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Campos formativos del Sistema Educativo Nacional Mexicano - 6to Grado
+model CampoFormativo {
+  id          String   @id @default(cuid())
+  nombre      String   // Lenguaje y Comunicación, Pensamiento Matemático, etc.
+  descripcion String?
+  color       String   @default("#6366f1") // Color para identificar
+  icono       String?  // Emoji o nombre de icono
+  orden       Int      @default(0)
+  tareas      Tarea[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tarea {
+  id              String          @id @default(cuid())
+  titulo          String
+  descripcion     String?         // Contenido enriquecido en JSON
+  campoFormativoId String
+  campoFormativo  CampoFormativo  @relation(fields: [campoFormativoId], references: [id])
+  tema            String?
+  fechaProgramada DateTime?
+  fechaLimite     DateTime?
+  activa          Boolean         @default(true)
+  orden           Int             @default(0)
+  archivos        Archivo[]
+  imagenes        Imagen[]
+  videos          Video[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Archivo {
+  id        String   @id @default(cuid())
+  nombre    String
+  tipo      String   // pdf, codigo, etc.
+  url       String
+  tamaño    Int?
+  tareaId   String
+  tarea     Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Imagen {
+  id        String   @id @default(cuid())
+  url       String
+  alt       String?
+  tareaId   String
+  tarea     Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model Video {
+  id           String   @id @default(cuid())
+  urlYoutube   String
+  videoId      String   // ID del video de YouTube
+  titulo       String?
+  tareaId      String
+  tarea        Tarea    @relation(fields: [tareaId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
+
+// Configuración del sitio
+model Configuracion {
+  id        String   @id @default(cuid())
+  clave     String   @unique
+  valor     String
+  updatedAt DateTime @updatedAt
+}
+
+// Banner de anuncios (Marquee)
+model MarqueeBanner {
+  id          String   @id @default(cuid())
+  texto       String
+  imagenUrl   String?  // URL de imagen opcional para el banner
+  activo      Boolean  @default(true)
+  velocidad   Int      @default(30) // segundos para la animación
+  updatedAt   DateTime @updatedAt
+}

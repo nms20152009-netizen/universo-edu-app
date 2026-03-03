@@ -1,0 +1,46 @@
+{
+  "buildCommand": "npx prisma generate && npx prisma db push && next build",
+  "framework": "nextjs",
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "TURSO_DATABASE_URL": "@turso_database_url",
+    "TURSO_AUTH_TOKEN": "@turso_auth_token",
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "src/app/api/**": {
+      "memory": 3008,
+      "maxDuration": 60
+    }
+  },
+  "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
+}

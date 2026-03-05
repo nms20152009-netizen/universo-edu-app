@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && npx prisma db push && next build",
+  "buildCommand": "DATABASE_URL=file:./dev.db npx prisma generate && next build",
   "framework": "nextjs",
   "functions": {
     "src/app/api/**": {

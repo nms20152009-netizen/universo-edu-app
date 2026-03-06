@@ -110,22 +110,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Crear campos formativos con la estructura de la SEP
-    const camposData = camposFormativosSEP.map(campo => ({
-      id: campo.id,
-      nombre: campo.nombre,
-      descripcion: campo.descripcion,
-      color: campo.color,
-      icono: campo.icono,
-      orden: campo.orden
-    }))
-
-    await db.campoFormativo.createMany({
-      data: camposData
-    })
+    // Nota: usamos create individual porque createMany no es soportado por el adapter libsql
+    for (const campo of camposFormativosSEP) {
+      await db.campoFormativo.create({
+        data: {
+          id: campo.id,
+          nombre: campo.nombre,
+          descripcion: campo.descripcion,
+          color: campo.color,
+          icono: campo.icono,
+          orden: campo.orden
+        }
+      })
+    }
 
     return NextResponse.json({ 
       message: 'Campos formativos SEP inicializados correctamente',
-      count: camposData.length,
+      count: camposFormativosSEP.length,
       libros: librosSextoGrado
     })
   } catch (error) {
@@ -150,18 +151,19 @@ export async function GET() {
 
     // Si no hay campos, inicializarlos
     if (campos.length === 0) {
-      const camposData = camposFormativosSEP.map(campo => ({
-        id: campo.id,
-        nombre: campo.nombre,
-        descripcion: campo.descripcion,
-        color: campo.color,
-        icono: campo.icono,
-        orden: campo.orden
-      }))
-
-      await db.campoFormativo.createMany({
-        data: camposData
-      })
+      // Crear uno por uno (createMany no soportado por libsql adapter)
+      for (const campo of camposFormativosSEP) {
+        await db.campoFormativo.create({
+          data: {
+            id: campo.id,
+            nombre: campo.nombre,
+            descripcion: campo.descripcion,
+            color: campo.color,
+            icono: campo.icono,
+            orden: campo.orden
+          }
+        })
+      }
 
       campos = await db.campoFormativo.findMany({
         orderBy: { orden: 'asc' },

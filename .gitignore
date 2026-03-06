@@ -14,3 +14,5 @@ bun.lock
 db/custom.db
 public/uploads/*
 !public/uploads/.gitkeep
+
+.vercel

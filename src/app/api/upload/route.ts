@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
-import path from 'path'
 
 // POST - Subir archivo
 export async function POST(request: NextRequest) {
@@ -19,24 +16,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear directorio de uploads si no existe
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads')
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
-    }
-
-    // Generar nombre único
+    // Convert file to Base64 data URL
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`
-    const filePath = path.join(uploadDir, fileName)
-
-    // Guardar archivo
-    await writeFile(filePath, buffer)
-
-    const url = `/uploads/${fileName}`
+    
+    // Create base 64 string
+    const base64String = buffer.toString('base64')
+    // Get correct MIME type
+    const mimeType = file.type || (tipo === 'pdf' ? 'application/pdf' : 'application/octet-stream')
+    
+    // Construct data URL
+    const url = `data:${mimeType};base64,${base64String}`
 
     // Si hay tareaId, guardar en la base de datos
+    // Limit size for database inserts? (Turso limits to ~1GB per row, so this should generally be fine for basic tasks)
     if (tareaId) {
       if (tipo === 'imagen') {
         const imagen = await db.imagen.create({

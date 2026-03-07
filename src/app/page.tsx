@@ -111,10 +111,10 @@ function RenderTareaContent({ content, darkMode }: { content: string; darkMode: 
     const iframeRegex = /<iframe[^>]*src=["']([^"']*youtube\.com\/embed\/[^"']*)["'][^>]*><\/iframe>/gi
     // Procesar marcadores de video
     const videoMarkerRegex = /\[Video:\s*(https?:\/\/[^\]]+)\]/gi
-    // Procesar marcadores de imagen
-    const imageMarkerRegex = /\[Imagen:\s*(\/uploads\/[^\]]+)\]/gi
+    // Procesar marcadores de imagen (data URL o /uploads/)
+    const imageMarkerRegex = /\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)\]/gi
     // Procesar marcadores de archivo
-    const fileMarkerRegex = /📎\s*Archivo:\s*([^-]+)\s*-\s*Enlace:\s*(\/uploads\/[^\n]+)/g
+    const fileMarkerRegex = /📎\s*Archivo:\s*([^-]+)\s*-\s*Enlace:\s*(data:[^;]+;base64,[^\n]+|\/uploads\/[^\n]+)/g
     // Procesar marcadores de link
     const linkMarkerRegex = /\[Link:\s*([^\]]+)\s*-\s*(https?:\/\/[^\]]+)\]/gi
     // Procesar URLs directas (http o https)
@@ -385,9 +385,9 @@ export default function Home() {
     if (tarea.descripcion) {
       setEditorContent(tarea.descripcion)
       // Extraer imágenes del contenido
-      const imageMatches = tarea.descripcion.match(/\[Imagen: (\/uploads\/[^\]]+)\]/g)
+      const imageMatches = tarea.descripcion.match(/\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)\]/g)
       if (imageMatches) {
-        const urls = imageMatches.map(m => m.match(/\/uploads\/[^\]]+/)?.[0] || '')
+        const urls = imageMatches.map(m => m.match(/(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)/)?.[0] || '')
         setUploadedImages(urls.filter(Boolean))
       }
     } else {
@@ -1987,7 +1987,45 @@ export default function Home() {
                 <ImageIcon className="w-4 h-4" />
                 Imágenes
               </Label>
-              <div className={`p-4 border-2 border-dashed rounded-lg text-center ${darkMode ? 'border-slate-600' : 'border-slate-300'}`}>
+              <div 
+                className={`p-4 border-2 border-dashed rounded-lg text-center ${darkMode ? 'border-slate-600' : 'border-slate-300'} transition-colors hover:border-indigo-500`}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.classList.add('border-indigo-500', 'bg-indigo-50', darkMode ? 'dark:bg-indigo-900/20' : '')
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50', darkMode ? 'dark:bg-indigo-900/20' : '')
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('border-indigo-500', 'bg-indigo-50', darkMode ? 'dark:bg-indigo-900/20' : '')
+                  const files = e.dataTransfer.files
+                  if (!files || files.length === 0) return
+                  
+                  for (const file of Array.from(files)) {
+                    if (!file.type.startsWith('image/')) continue; // Ignore non-images if dropped here
+                    const formData = new FormData()
+                    formData.append('file', file)
+                    formData.append('tipo', 'imagen')
+                    
+                    try {
+                      const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                      })
+                      const data = await response.json()
+                      
+                      if (data.url) {
+                        setUploadedImages(prev => [...prev, data.url])
+                        setEditorContent(prev => prev + `\n[Imagen: ${data.url}]\n`)
+                      }
+                    } catch (error) {
+                      console.error('Error uploading dropped image:', error)
+                    }
+                  }
+                }}
+              >
                 <Input
                   type="file"
                   accept="image/*"
@@ -2021,7 +2059,7 @@ export default function Home() {
                   className="hidden"
                   id="image-upload"
                 />
-                <label htmlFor="image-upload" className="cursor-pointer">
+                <label htmlFor="image-upload" className="cursor-pointer block w-full h-full">
                   <Upload className="w-8 h-8 mx-auto mb-2 text-slate-400" />
                   <p className="text-sm text-slate-500">Haz clic para subir imágenes o arrastra archivos aquí</p>
                 </label>

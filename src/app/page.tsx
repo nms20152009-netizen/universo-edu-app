@@ -114,7 +114,7 @@ function RenderTareaContent({ content, darkMode }: { content: string; darkMode: 
     // Procesar marcadores de imagen (data URL o /uploads/)
     const imageMarkerRegex = /\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)\]/gi
     // Procesar marcadores de archivo
-    const fileMarkerRegex = /📎\s*Archivo:\s*([^-]+)\s*-\s*Enlace:\s*(data:[^;]+;base64,[^\n]+|\/uploads\/[^\n]+)/g
+    const fileMarkerRegex = /📎\s*Archivo:\s*(.*?)\s*-\s*Enlace:\s*(data:[^;]+;base64,[^\n]+|\/uploads\/[^\n]+)/g
     // Procesar marcadores de link
     const linkMarkerRegex = /\[Link:\s*([^\]]+)\s*-\s*(https?:\/\/[^\]]+)\]/gi
     // Procesar URLs directas (http o https)
@@ -2161,35 +2161,51 @@ export default function Home() {
                 <Label className="flex items-center gap-2 mb-2">
                   <Upload className="w-4 h-4" />
                   Archivos (PDF, Código)
+                  {saving && <span className="text-xs text-indigo-500 animate-pulse ml-2">Subiendo...</span>}
                 </Label>
                 <Input
                   type="file"
                   accept=".pdf,.js,.ts,.py,.html,.css,.txt"
+                  disabled={saving}
                   onChange={async (e) => {
                     const file = e.target.files?.[0]
                     if (!file) return
                     
-                    const formData = new FormData()
-                    formData.append('file', file)
-                    formData.append('tipo', file.type.includes('pdf') ? 'pdf' : 'codigo')
-                    
+                    setSaving(true)
                     try {
+                      const formData = new FormData()
+                      formData.append('file', file)
+                      formData.append('tipo', file.type?.includes('pdf') ? 'pdf' : 'codigo')
+                      
                       const response = await fetch('/api/upload', {
                         method: 'POST',
                         body: formData
                       })
+                      
+                      if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`)
+                      }
+                      
                       const data = await response.json()
                       
                       if (data.url) {
                         setEditorContent(prev => prev + `\n📎 Archivo: ${file.name} - Enlace: ${data.url}\n`)
+                      } else if (data.error) {
+                        alert(`Error del servidor: ${data.error}`)
                       }
                     } catch (error) {
                       console.error('Error uploading file:', error)
+                      alert('Falló la subida del archivo. Puede que el archivo sea demasiado grande (límite de 4MB en Vercel) o hubo un error de red.')
+                    } finally {
+                      setSaving(false)
+                      e.target.value = ''
                     }
-                    e.target.value = ''
                   }}
                   className={darkMode ? 'bg-slate-800 border-slate-700' : ''}
                 />
+                <p className="text-xs text-slate-500 mt-1">
+                  Tamaño máximo recomendado: 4MB
+                </p>
               </div>
 
               {/* Agregar Links */}

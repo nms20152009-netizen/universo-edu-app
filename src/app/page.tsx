@@ -790,13 +790,24 @@ export default function Home() {
   }
 
   const handleDeleteTarea = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta tarea?')) return
+    if (!id) return
+    
+    const shouldDelete = window.confirm('¿Estás seguro de eliminar esta tarea?')
+    if (!shouldDelete) return
     
     try {
-      await fetch(`/api/tareas?id=${id}`, { method: 'DELETE' })
-      refreshTareas()
+      const response = await fetch(`/api/tareas?id=${id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Error deleting tarea:', errorData)
+        window.alert('Error al eliminar la tarea. Intenta de nuevo.')
+        return
+      }
+      // Refresh the list after successful deletion
+      await refreshTareas()
     } catch (error) {
       console.error('Error deleting tarea:', error)
+      window.alert('Error de conexión al eliminar la tarea.')
     }
   }
 

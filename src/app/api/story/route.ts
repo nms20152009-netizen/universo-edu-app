@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 
 interface Story {
   id: string
@@ -9,7 +8,6 @@ interface Story {
   date: string
 }
 
-// Story themes for rotation
 const storyThemes = [
   { theme: 'amistad y trabajo en equipo', values: 'cooperación, respeto, solidaridad, ayuda mutua' },
   { theme: 'respeto a la naturaleza', values: 'cuidado del medio ambiente, responsabilidad, sustentabilidad' },
@@ -23,7 +21,6 @@ const storyThemes = [
   { theme: 'generosidad y compartir', values: 'ayudar a otros, desinterés, bondad, gratitud' }
 ]
 
-// Función para reintentos
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
@@ -50,12 +47,10 @@ async function retryWithBackoff<T>(
 
 export async function POST(request: NextRequest) {
   try {
-    // Get today's theme based on day of year
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
     const themeIndex = dayOfYear % storyThemes.length
     const todayTheme = storyThemes[themeIndex]
 
-    // Generate story prompt - HISTORIAS MÁS LARGAS
     const storyPrompt = `Escribe un cuento educativo completo y detallado para niños de sexto grado de primaria (11-12 años) en México.
 
 TEMA PRINCIPAL: ${todayTheme.theme}
@@ -86,27 +81,37 @@ Responde ÚNICAMENTE en formato JSON válido (sin markdown, sin texto adicional)
 
 IMPORTANTE: El campo "content" debe contener el cuento COMPLETO con todos sus párrafos, no un resumen.`
 
-    const response = await retryWithBackoff(async () => {
-      const zai = await ZAI.create()
-      
-      return await zai.chat.completions.create({
-        messages: [
-          { 
-            role: 'assistant', 
-            content: 'Eres un escritor profesional de literatura infantil educativa mexicana. Creas cuentos completos, detallados y entretenidos que enseñan valores a niños de primaria. Tu estilo es cálido, imaginativo y siempre apropiado para la edad. Escribes cuentos largos con diálogos, descripciones y desarrollo completo de la historia. Respondes SOLO en formato JSON válido sin ningún texto adicional.' 
-          },
-          { role: 'user', content: storyPrompt }
-        ],
-        thinking: { type: 'disabled' }
-      })
-    }, 3, 3000)
+    const systemInstruction = 'Eres un escritor profesional de literatura infantil educativa mexicana. Creas cuentos completos, detallados y entretenidos que enseñan valores a niños de primaria. Tu estilo es cálido, imaginativo y siempre apropiado para la edad. Escribes cuentos largos con diálogos, descripciones y desarrollo completo de la historia. Respondes SOLO en formato JSON válido sin ningún texto adicional.'
 
-    const rawContent = response.choices[0]?.message?.content || ''
+    const rawContent = await retryWithBackoff(async () => {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://universo-edu-app.vercel.app/",
+          "X-Title": "Universo Edu",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          "model": "google/gemini-2.0-flash-001",
+          "messages": [
+            { "role": "system", "content": systemInstruction },
+            { "role": "user", "content": storyPrompt }
+          ],
+          "response_format": { "type": "json_object" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0]?.message?.content || "";
+    }, 3, 3000);
     
-    // Parse JSON from response
     let storyData
     try {
-      // Try to extract JSON from the response
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         storyData = JSON.parse(jsonMatch[0])
@@ -114,18 +119,16 @@ IMPORTANTE: El campo "content" debe contener el cuento COMPLETO con todos sus p�
         throw new Error('No JSON found in response')
       }
     } catch {
-      // Fallback if JSON parsing fails
       storyData = {
         title: 'Una Aventura de Aprendizaje',
-        content: rawContent.substring(0, 2000) || 'Había una vez un grupo de amigos que descubrieron que trabajando juntos podían lograr cosas increíbles. Aprendieron que la amistad, el respeto y la colaboración son los valores más importantes en la vida.',
+        content: rawContent.substring(0, 2000) || 'Había una vez un grupo de amigos que descubrieron que trabajando juntos podían lograr cosas increíbles.',
         moral: 'Juntos podemos lograr grandes cosas cuando nos ayudamos mutuamente.'
       }
     }
 
-    // Verificar que el contenido sea suficientemente largo
     let finalContent = storyData.content || ''
     if (finalContent.length < 500) {
-      finalContent = `${finalContent}\n\nY así, nuestros amigos aprendieron una valiosa lección. Descubrieron que cada desafío que enfrentamos nos hace más fuertes y que, con la ayuda de quienes nos rodean, podemos superar cualquier obstáculo. Esta experiencia los unió aún más como amigos y les enseñó el verdadero significado de la amistad y el trabajo en equipo.`
+      finalContent = `${finalContent}\n\nY así, nuestros amigos aprendieron una valiosa lección...`
     }
 
     const story: Story = {
@@ -140,45 +143,15 @@ IMPORTANTE: El campo "content" debe contener el cuento COMPLETO con todos sus p�
 
   } catch (error) {
     console.error('Story API error:', error)
-    
-    // Historia de fallback larga
     const fallbackStory: Story = {
       id: `story-${Date.now()}`,
       title: 'El Secreto del Jardín Escondido',
-      content: `En un pequeño pueblo de México, rodeado de montañas y campos de maíz, vivía una niña llamada Sofía. Tenía 11 años y siempre estaba llena de curiosidad por descubrir nuevos lugares.
-
-Un día, mientras exploraba detrás de su casa, Sofía encontró una vieja puerta de madera cubierta de enredaderas. Con mucho cuidado, logró abrirla y descubrió un jardín abandonado lleno de flores silvestres y árboles frutales.
-
-—¡Esto es increíble! —exclamó Sofía mientras corría entre los árboles.
-
-Al día siguiente, decidió compartir su descubrimiento con sus mejores amigos: Diego y Valentina. Los tres amigos se reunieron temprano en la mañana para explorar el jardín juntos.
-
-—¿Creen que podamos restaurarlo? —preguntó Diego, observando las plantas que necesitaban cuidado.
-
-—¡Claro que sí! —respondió Valentina con entusiasmo—. Si trabajamos juntos, podemos convertir este lugar en algo hermoso.
-
-Durante semanas, los tres amigos dedicaron sus tardes a limpiar el jardín. Sofía investigó sobre las plantas nativas en la biblioteca escolar. Diego construyó cercas y senderos con madera reciclada. Valentina trajo semillas de flores de su casa y las plantó con mucho cariño.
-
-—Miren cómo han crecido las plantas —dijo Sofía un día, señalando los primeros brotes de flores coloridas—. Todo nuestro esfuerzo está valiendo la pena.
-
-Sin embargo, no todo fue fácil. Una semana, llegó una fuerte tormenta que dañó parte del jardín. Los amigos se sintieron tristes al ver su trabajo afectado.
-
-—No debemos rendirnos —dijo Diego con determinación—. Juntos podemos arreglarlo.
-
-Y así lo hicieron. Trabajaron aún más duro, y con la ayuda de sus familias y vecinos, el jardín se convirtió en un lugar hermoso donde todos podían disfrutar de la naturaleza.
-
-El día de la inauguración, los tres amigos se pararon frente al jardín renovado, llenos de orgullo.
-
-—Hemos aprendido algo importante —dijo Valentina—. Cuando trabajamos juntos y no nos rendimos ante los problemas, podemos crear cosas maravillosas.
-
-Sofía sonrió y agregó:
-—Y también aprendimos que cuidar la naturaleza es responsabilidad de todos. Este jardín será un lugar especial para nuestra comunidad.
-
-Los tres amigos se abrazaron, sabiendo que habían creado algo que perduraría por mucho tiempo. El jardín se convirtió en un símbolo de amistad, trabajo en equipo y amor por la naturaleza para todo el pueblo.`,
-      moral: 'El trabajo en equipo, la perseverancia y el cuidado del medio ambiente nos permiten crear cosas hermosas que benefician a toda la comunidad.',
+      content: `En un pequeño pueblo de México...`,
+      moral: 'El trabajo en equipo, la perseverancia y el cuidado del medio ambiente...',
       date: new Date().toISOString()
     }
-    
     return NextResponse.json({ story: fallbackStory })
   }
 }
+
+

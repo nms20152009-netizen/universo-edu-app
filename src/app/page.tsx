@@ -102,160 +102,169 @@ interface MarqueeBanner {
 
 // Componente para renderizar contenido de tareas con imágenes, videos y links
 function RenderTareaContent({ content, darkMode }: { content: string; darkMode: boolean }) {
+  if (!content || typeof content !== 'string') return null;
+  const safeTrim = (value: unknown, fallback = '') =>
+    typeof value === 'string' ? value.trim() : fallback
+
   // Procesar el contenido para extraer y renderizar elementos especiales
   const processContent = (text: string) => {
-    const elements: React.ReactNode[] = []
-    let remaining = text
-    
-    // Procesar iframes de YouTube
-    const iframeRegex = /<iframe[^>]*src=["']([^"']*youtube\.com\/embed\/[^"']*)["'][^>]*><\/iframe>/gi
-    // Procesar marcadores de video
-    const videoMarkerRegex = /\[Video:\s*(https?:\/\/[^\]]+)\]/gi
-    // Procesar marcadores de imagen (data URL o /uploads/)
-    const imageMarkerRegex = /\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)\]/gi
-    // Procesar marcadores de archivo
-    const fileMarkerRegex = /📎\s*Archivo:\s*(.*?)\s*-\s*Enlace:\s*(data:[^;]+;base64,[^\n]+|\/uploads\/[^\n]+)/g
-    // Procesar marcadores de link
-    const linkMarkerRegex = /\[Link:\s*([^\]]+)\s*-\s*(https?:\/\/[^\]]+)\]/gi
-    // Procesar URLs directas (http o https)
-    const urlRegex = /(https?:\/\/[^\s<>"']+)/gi
-    
-    let keyIndex = 0
-    
-    while (remaining.length > 0) {
-      // Buscar el primer elemento especial
-      const iframeMatch = remaining.match(iframeRegex)
-      const videoMarkerMatch = remaining.match(videoMarkerRegex)
-      const imageMarkerMatch = remaining.match(imageMarkerRegex)
-      const fileMarkerMatch = remaining.match(fileMarkerRegex)
-      const linkMarkerMatch = remaining.match(linkMarkerRegex)
-      const urlMatch = remaining.match(urlRegex)
+    try {
+      const elements: React.ReactNode[] = []
+      let remaining = text
+
+      // Procesar iframes de YouTube (non-greedy, optimized)
+      const iframeRegex = /<iframe\s+[^>]*src\s*=\s*["']([^"']*youtube\.com\/embed\/[^"']*?)["'][^>]*>\s*<\/iframe>/i
+      // Procesar marcadores de video (optimized)
+      const videoMarkerRegex = /\[Video:\s*(https?:\/\/[^\]\s]+)\]/i
+      // Procesar marcadores de imagen (data URL o /uploads/) - optimized with non-greedy quantifiers
+      const imageMarkerRegex = /\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]*?|\/uploads\/[^\]]*?)\]/i
+      // Procesar marcadores de archivo - optimized with non-greedy quantifiers
+      const fileMarkerRegex = /📎\s*Archivo:\s*([^-]*?)\s*-\s*Enlace:\s*(data:[^;]+;base64,[^\s\]]*?|\/uploads\/[^\s\]]*?)/i
+      // Procesar marcadores de link - Soporta tanto [Link: Texto | URL] como [Link: Texto - URL]
+      const linkMarkerRegex = /\[Link:\s*([^\]|-]+?)\s*(\||-)\s*([^\]]+?)\]/i
+      // Procesar URLs directas (http o https) - optimized
+      const urlRegex = /https?:\/\/[^\s<>"']+/i
       
-      // Encontrar la posición más cercana
-      const positions: { type: string; index: number; match: RegExpMatchArray | null }[] = [
-        { type: 'iframe', index: iframeMatch ? remaining.indexOf(iframeMatch[0]) : Infinity, match: iframeMatch },
-        { type: 'videoMarker', index: videoMarkerMatch ? remaining.indexOf(videoMarkerMatch[0]) : Infinity, match: videoMarkerMatch },
-        { type: 'imageMarker', index: imageMarkerMatch ? remaining.indexOf(imageMarkerMatch[0]) : Infinity, match: imageMarkerMatch },
-        { type: 'fileMarker', index: fileMarkerMatch ? remaining.indexOf(fileMarkerMatch[0]) : Infinity, match: fileMarkerMatch },
-        { type: 'linkMarker', index: linkMarkerMatch ? remaining.indexOf(linkMarkerMatch[0]) : Infinity, match: linkMarkerMatch },
-        { type: 'url', index: urlMatch ? remaining.indexOf(urlMatch[0]) : Infinity, match: urlMatch }
-      ].filter(p => p.index !== Infinity)
+      let keyIndex = 0
       
-      if (positions.length === 0) {
-        // No más elementos especiales, agregar texto restante
-        if (remaining.trim()) {
+      while (remaining.length > 0) {
+        // Buscar el primer elemento especial
+        const iframeMatch = remaining.match(iframeRegex)
+        const videoMarkerMatch = remaining.match(videoMarkerRegex)
+        const imageMarkerMatch = remaining.match(imageMarkerRegex)
+        const fileMarkerMatch = remaining.match(fileMarkerRegex)
+        const linkMarkerMatch = remaining.match(linkMarkerRegex)
+        const urlMatch = remaining.match(urlRegex)
+        
+        // Encontrar la posición más cercana
+        const positions: { type: string; index: number; match: RegExpMatchArray | null }[] = [
+          { type: 'iframe', index: (iframeMatch && iframeMatch.index !== undefined) ? iframeMatch.index : Infinity, match: iframeMatch },
+          { type: 'videoMarker', index: (videoMarkerMatch && videoMarkerMatch.index !== undefined) ? videoMarkerMatch.index : Infinity, match: videoMarkerMatch },
+          { type: 'imageMarker', index: (imageMarkerMatch && imageMarkerMatch.index !== undefined) ? imageMarkerMatch.index : Infinity, match: imageMarkerMatch },
+          { type: 'fileMarker', index: (fileMarkerMatch && fileMarkerMatch.index !== undefined) ? fileMarkerMatch.index : Infinity, match: fileMarkerMatch },
+          { type: 'linkMarker', index: (linkMarkerMatch && linkMarkerMatch.index !== undefined) ? linkMarkerMatch.index : Infinity, match: linkMarkerMatch },
+          { type: 'url', index: (urlMatch && urlMatch.index !== undefined) ? urlMatch.index : Infinity, match: urlMatch }
+        ].filter(p => p.index !== Infinity)
+        
+        if (positions.length === 0) {
+          // No más elementos especiales, agregar texto restante
           elements.push(<span key={`text-${keyIndex++}`} className="whitespace-pre-wrap">{remaining}</span>)
+          break
         }
-        break
-      }
-      
-      // Ordenar por posición
-      positions.sort((a, b) => a.index - b.index)
-      const first = positions[0]
-      
-      // Agregar texto antes del elemento
-      if (first.index > 0) {
-        const beforeText = remaining.substring(0, first.index)
-        if (beforeText.trim()) {
+        
+        // Ordenar por posición
+        positions.sort((a, b) => a.index - b.index)
+        const first = positions[0]
+        
+        // Agregar texto antes del elemento
+        if (first.index > 0) {
+          const beforeText = remaining.substring(0, first.index)
           elements.push(<span key={`text-${keyIndex++}`} className="whitespace-pre-wrap">{beforeText}</span>)
         }
-      }
-      
-      // Agregar el elemento especial
-      if (first.type === 'iframe' && first.match) {
-        const iframeHtml = first.match[0]
-        const srcMatch = iframeHtml.match(/src=["']([^"']+)["']/i)
-        if (srcMatch) {
-          elements.push(
-            <div key={`video-${keyIndex++}`} className="aspect-video rounded-lg overflow-hidden my-3">
-              <iframe
-                src={srcMatch[1]}
-                title="Video de YouTube"
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
+        
+        // Agregar el elemento especial
+        if (first.match) {
+          const matchContent = first.match[0]
+          const matchLength = matchContent.length
+          const advancement = first.index + Math.max(matchLength, 1)
+          
+          if (first.type === 'iframe') {
+            const srcMatch = matchContent.match(/src=["']([^"']+)["']/i)
+            if (srcMatch) {
+              elements.push(
+                <div key={`video-${keyIndex++}`} className="aspect-video rounded-lg overflow-hidden my-3">
+                  <iframe
+                    src={srcMatch[1]}
+                    title="Video de YouTube"
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )
+            }
+          } else if (first.type === 'videoMarker') {
+            const videoUrl = first.match[1]
+            elements.push(
+              <div key={`video-${keyIndex++}`} className="aspect-video rounded-lg overflow-hidden my-3">
+                <iframe
+                  src={videoUrl}
+                  title="Video de YouTube"
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )
+          } else if (first.type === 'imageMarker') {
+            const imageUrl = first.match[1]
+            elements.push(
+              <img 
+                key={`image-${keyIndex++}`}
+                src={imageUrl} 
+                alt="Imagen de la tarea" 
+                className="max-w-full h-auto rounded-lg my-2"
               />
-            </div>
-          )
+            )
+          } else if (first.type === 'fileMarker') {
+            const fileName = safeTrim(first.match[1], 'Archivo')
+            const fileUrl = first.match[2]
+            if (fileUrl) {
+              elements.push(
+                <a
+                  key={`file-${keyIndex++}`}
+                  href={fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg my-1 ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} transition-colors`}
+                >
+                  <FileIcon className="w-4 h-4" />
+                  {fileName}
+                </a>
+              )
+            }
+          } else if (first.type === 'linkMarker') {
+            const linkText = safeTrim(first.match[1], 'Enlace')
+            // Compatibilidad con formatos antiguos y nuevos: [Link: texto - url] y [Link: texto | url]
+            const linkUrl = safeTrim(first.match[3] ?? first.match[2], '')
+            if (linkUrl) {
+              elements.push(
+                <a
+                  key={`link-${keyIndex++}`}
+                  href={linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg my-1 ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors font-medium`}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {linkText}
+                </a>
+              )
+            }
+          } else if (first.type === 'url') {
+            const url = first.match[0]
+            elements.push(
+              <a
+                key={`url-${keyIndex++}`}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`underline ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
+              >
+                {url}
+              </a>
+            )
+          }
+          remaining = remaining.substring(advancement)
+        } else {
+          remaining = remaining.substring(1)
         }
-        remaining = remaining.substring(first.index + iframeHtml.length)
-      } else if (first.type === 'videoMarker' && first.match) {
-        const videoUrl = first.match[1]
-        elements.push(
-          <div key={`video-${keyIndex++}`} className="aspect-video rounded-lg overflow-hidden my-3">
-            <iframe
-              src={videoUrl}
-              title="Video de YouTube"
-              className="w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-        )
-        remaining = remaining.substring(first.index + first.match[0].length)
-      } else if (first.type === 'imageMarker' && first.match) {
-        const imageUrl = first.match[1]
-        elements.push(
-          <img 
-            key={`image-${keyIndex++}`}
-            src={imageUrl} 
-            alt="Imagen de la tarea" 
-            className="max-w-full h-auto rounded-lg my-2"
-          />
-        )
-        remaining = remaining.substring(first.index + first.match[0].length)
-      } else if (first.type === 'fileMarker' && first.match) {
-        const fileName = first.match[1].trim()
-        const fileUrl = first.match[2]
-        elements.push(
-          <a
-            key={`file-${keyIndex++}`}
-            href={fileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg my-1 ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} transition-colors`}
-          >
-            <FileIcon className="w-4 h-4" />
-            {fileName}
-          </a>
-        )
-        remaining = remaining.substring(first.index + first.match[0].length)
-      } else if (first.type === 'linkMarker' && first.match) {
-        const linkText = first.match[1].trim()
-        const linkUrl = first.match[2]
-        elements.push(
-          <a
-            key={`link-${keyIndex++}`}
-            href={linkUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg my-1 ${darkMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors font-medium`}
-          >
-            <ExternalLink className="w-4 h-4" />
-            {linkText}
-          </a>
-        )
-        remaining = remaining.substring(first.index + first.match[0].length)
-      } else if (first.type === 'url' && first.match) {
-        const url = first.match[0]
-        elements.push(
-          <a
-            key={`url-${keyIndex++}`}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`underline ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
-          >
-            {url}
-          </a>
-        )
-        remaining = remaining.substring(first.index + url.length)
-      } else {
-        break
       }
+      return elements
+    } catch (error) {
+      console.error('Error processing content:', error)
+      return [<span key="error" className="whitespace-pre-wrap">{text}</span>]
     }
-    
-    return elements
   }
 
   return <>{processContent(content)}</>
@@ -301,6 +310,47 @@ const campoIcons: Record<string, React.ReactNode> = {
   'Saberes y Pensamiento Científico': <Microscope className="w-6 h-6" />,
   'Ética, Naturaleza y Sociedades': <Globe2 className="w-6 h-6" />,
   'De lo Humano y lo Comunitario': <Users className="w-6 h-6" />
+}
+
+// Helper para formatear fechas de forma segura
+const formatDateSafely = (date: string | null | undefined, options: Intl.DateTimeFormatOptions) => {
+  if (!date || typeof date !== 'string') return '';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('es-MX', {
+      ...options,
+      timeZone: MEXICO_TIMEZONE
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+}
+
+const ensureArray = <T,>(value: T[] | null | undefined): T[] => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [];
+}
+
+const normalizeTarea = (tarea: Tarea): Tarea => ({
+  ...tarea,
+  archivos: ensureArray(tarea.archivos),
+  imagenes: ensureArray(tarea.imagenes),
+  videos: ensureArray(tarea.videos),
+})
+
+const toDatetimeLocalValue = (value: string | null | undefined) => {
+  if (!value || typeof value !== 'string') return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  try {
+    return date.toISOString().slice(0, 16)
+  } catch (e) {
+    return ''
+  }
 }
 
 export default function Home() {
@@ -378,6 +428,13 @@ export default function Home() {
   
   // Hora CDMX
   const [currentTime, setCurrentTime] = useState('')
+  const [currentDateLabel, setCurrentDateLabel] = useState('')
+  
+  // Hydration guard
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Cargar contenido cuando se edita una tarea (se dispara desde el botón de editar)
   const loadEditingContent = (tarea: Tarea) => {
@@ -386,8 +443,11 @@ export default function Home() {
       setEditorContent(tarea.descripcion)
       // Extraer imágenes del contenido
       const imageMatches = tarea.descripcion.match(/\[Imagen:\s*(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)\]/g)
-      if (imageMatches) {
-        const urls = imageMatches.map(m => m.match(/(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)/)?.[0] || '')
+      if (imageMatches && Array.isArray(imageMatches)) {
+        const urls = imageMatches.map(m => {
+          const innerMatch = m.match(/(data:image\/[^;]+;base64,[^\]]+|\/uploads\/[^\]]+)/)
+          return innerMatch ? innerMatch[0] : ''
+        })
         setUploadedImages(urls.filter(Boolean))
       }
     } else {
@@ -415,7 +475,32 @@ export default function Home() {
         second: '2-digit',
         hour12: true
       }
-      setCurrentTime(now.toLocaleTimeString('es-MX', options))
+      try {
+        setCurrentTime(now.toLocaleTimeString('es-MX', options))
+      } catch {
+        setCurrentTime(now.toLocaleTimeString('es-MX'))
+      }
+
+      try {
+        setCurrentDateLabel(
+          now.toLocaleDateString('es-MX', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            timeZone: MEXICO_TIMEZONE
+          })
+        )
+      } catch {
+        setCurrentDateLabel(
+          now.toLocaleDateString('es-MX', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        )
+      }
     }
     
     updateTime()
@@ -428,9 +513,10 @@ export default function Home() {
     const fetchCampos = async () => {
       try {
         const response = await fetch('/api/campos-formativos')
+        if (!response.ok) throw new Error('API Error')
         const data = await response.json()
-        setCamposFormativos(data.campos || data)
-        setLibrosCONALITEG(data.librosCONALITEG || [])
+        setCamposFormativos(Array.isArray(data.campos) ? data.campos : Array.isArray(data) ? data : [])
+        setLibrosCONALITEG(Array.isArray(data.librosCONALITEG) ? data.librosCONALITEG : [])
       } catch (error) {
         console.error('Error loading campos:', error)
       }
@@ -443,11 +529,14 @@ export default function Home() {
     const fetchMarquee = async () => {
       try {
         const response = await fetch('/api/marquee')
+        if (!response.ok) throw new Error('API Error')
         const data = await response.json()
-        setMarqueeBanner(data)
-        setMarqueeTexto(data.texto)
-        setMarqueeImagenUrl(data.imagenUrl || '')
-        setMarqueeVelocidad(data.velocidad || 30)
+        if (data && !data.error) {
+          setMarqueeBanner(data)
+          setMarqueeTexto(data.texto || '')
+          setMarqueeImagenUrl(data.imagenUrl || '')
+          setMarqueeVelocidad(data.velocidad || 30)
+        }
       } catch (error) {
         console.error('Error loading marquee:', error)
       }
@@ -498,12 +587,14 @@ export default function Home() {
       try {
         const url = selectedCampo !== 'all' ? `/api/tareas?campoId=${selectedCampo}` : '/api/tareas'
         const response = await fetch(url)
+        if (!response.ok) throw new Error('API Error')
         const data = await response.json()
         if (mounted) {
-          setTareas(data)
+          setTareas(Array.isArray(data) ? data.map(normalizeTarea) : [])
         }
       } catch (error) {
         console.error('Error loading tareas:', error)
+        if (mounted) setTareas([])
       }
     }
     fetchTareas()
@@ -516,10 +607,12 @@ export default function Home() {
     try {
       const url = selectedCampo !== 'all' ? `/api/tareas?campoId=${selectedCampo}` : '/api/tareas'
       const response = await fetch(url)
+      if (!response.ok) throw new Error('API Error')
       const data = await response.json()
-      setTareas(data)
+      setTareas(Array.isArray(data) ? data.map(normalizeTarea) : [])
     } catch (error) {
       console.error('Error loading tareas:', error)
+      setTareas([])
     }
   }
 
@@ -741,6 +834,17 @@ export default function Home() {
       if (match) return match[1]
     }
     return null
+  }
+
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="w-10 h-10 animate-spin text-purple-600" />
+          <p className="text-slate-500 font-medium">Cargando UNIVERSO EDU...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -1397,149 +1501,160 @@ export default function Home() {
 
               {/* Tareas Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {tareas.length === 0 ? (
+                {!Array.isArray(tareas) || tareas.length === 0 ? (
                   <div className={`col-span-2 text-center py-12 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                     <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
                     <p>No hay tareas disponibles en este momento.</p>
                   </div>
                 ) : (
                   tareas.map((tarea, index) => {
-                    const campoInfo = getCampoInfo(tarea.campoFormativoId)
-                    return (
-                      <motion.div
-                        key={tarea.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                      >
-                        <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} overflow-hidden`}>
-                          <div className="h-2" style={{ backgroundColor: campoInfo.color }}></div>
-                          <CardHeader>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span>{campoInfo.icono}</span>
-                                  <Badge variant="outline" style={{ borderColor: campoInfo.color, color: campoInfo.color }}>
-                                    {campoInfo.nombre}
-                                  </Badge>
+                    if (!tarea) return null;
+                    try {
+                      const campoInfo = getCampoInfo(tarea.campoFormativoId)
+                      return (
+                        <motion.div
+                          key={tarea.id || `tarea-${index}`}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                        >
+                          <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} overflow-hidden`}>
+                            <div className="h-2" style={{ backgroundColor: campoInfo.color }}></div>
+                            <CardHeader>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span>{campoInfo.icono}</span>
+                                    <Badge variant="outline" style={{ borderColor: campoInfo.color, color: campoInfo.color }}>
+                                      {campoInfo.nombre}
+                                    </Badge>
+                                  </div>
+                                  <CardTitle className={darkMode ? 'text-white' : ''}>
+                                    {tarea.titulo}
+                                  </CardTitle>
+                                  {tarea.tema && (
+                                    <CardDescription className={darkMode ? 'text-slate-400' : ''}>
+                                      Tema: {tarea.tema}
+                                    </CardDescription>
+                                  )}
                                 </div>
-                                <CardTitle className={darkMode ? 'text-white' : ''}>
-                                  {tarea.titulo}
-                                </CardTitle>
-                                {tarea.tema && (
-                                  <CardDescription className={darkMode ? 'text-slate-400' : ''}>
-                                    Tema: {tarea.tema}
-                                  </CardDescription>
+                                {isAdmin && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => loadEditingContent(tarea)}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteTarea(tarea.id)}
+                                      className="text-red-500"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
-                              {isAdmin && (
-                                <div className="flex gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => loadEditingContent(tarea)}
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteTarea(tarea.id)}
-                                    className="text-red-500"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </Button>
+                            </CardHeader>
+                            <CardContent>
+                              {tarea.descripcion && (
+                                <div className={`mb-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                                  <RenderTareaContent content={tarea.descripcion} darkMode={darkMode} />
                                 </div>
                               )}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            {tarea.descripcion && (
-                              <div className={`mb-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                                <RenderTareaContent content={tarea.descripcion} darkMode={darkMode} />
-                              </div>
-                            )}
-                            
-                            {/* Imágenes de la base de datos */}
-                            {tarea.imagenes && tarea.imagenes.length > 0 && (
-                              <div className="grid grid-cols-2 gap-2 mb-4">
-                                {tarea.imagenes.map(img => (
-                                  <img 
-                                    key={img.id} 
-                                    src={img.url} 
-                                    alt={img.alt || 'Imagen'} 
-                                    className="rounded-lg w-full h-32 object-cover"
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Videos YouTube */}
-                            {tarea.videos && tarea.videos.length > 0 && (
-                              <div className="space-y-4 mb-4">
-                                {tarea.videos.map(video => (
-                                  <div key={video.id} className="aspect-video rounded-lg overflow-hidden">
-                                    <iframe
-                                      src={`https://www.youtube.com/embed/${video.videoId}`}
-                                      title={video.titulo || 'Video'}
-                                      className="w-full h-full"
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                      allowFullScreen
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Archivos */}
-                            {tarea.archivos && tarea.archivos.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {tarea.archivos.map(archivo => (
-                                  <a
-                                    key={archivo.id}
-                                    href={archivo.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} transition-colors`}
-                                  >
-                                    {archivo.tipo.includes('pdf') ? (
-                                      <FileIcon className="w-4 h-4 text-red-500" />
-                                    ) : (
-                                      <Code className="w-4 h-4 text-blue-500" />
-                                    )}
-                                    <span className="text-sm">{archivo.nombre}</span>
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Fechas */}
-                            <div className={`flex gap-4 mt-4 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              {tarea.fechaProgramada && (
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-4 h-4" />
-                                  {new Date(tarea.fechaProgramada).toLocaleDateString('es-MX', {
-                                    timeZone: MEXICO_TIMEZONE,
-                                    day: 'numeric',
-                                    month: 'short'
-                                  })}
-                                </span>
+                              
+                              {/* Imágenes de la base de datos */}
+                              {Array.isArray(tarea.imagenes) && tarea.imagenes.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                  {ensureArray(tarea.imagenes).map((img, i) => (
+                                    img?.url ? (
+                                      <img 
+                                        key={img.id || `img-${i}`} 
+                                        src={img.url} 
+                                        alt={img.alt || 'Imagen'} 
+                                        className="rounded-lg w-full h-32 object-cover"
+                                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                                      />
+                                    ) : null
+                                  ))}
+                                </div>
                               )}
-                              {tarea.fechaLimite && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-4 h-4" />
-                                  Límite: {new Date(tarea.fechaLimite).toLocaleDateString('es-MX', {
-                                    timeZone: MEXICO_TIMEZONE,
-                                    day: 'numeric',
-                                    month: 'short'
-                                  })}
-                                </span>
+                              
+                              {/* Videos YouTube */}
+                              {Array.isArray(tarea.videos) && tarea.videos.length > 0 && (
+                                <div className="space-y-4 mb-4">
+                                  {tarea.videos.map((video, v) => (
+                                    video?.videoId ? (
+                                      <div key={video.id || `vid-${v}`} className="aspect-video rounded-lg overflow-hidden">
+                                        <iframe
+                                          src={`https://www.youtube.com/embed/${video.videoId}`}
+                                          title={video.titulo || 'Video'}
+                                          className="w-full h-full border-0"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : null
+                                  ))}
+                                </div>
                               )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    )
+                              
+                              {/* Archivos */}
+                              {Array.isArray(tarea.archivos) && tarea.archivos.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {ensureArray(tarea.archivos).map((archivo, a) => (
+                                    archivo?.url ? (
+                                      <a
+                                        key={archivo.id || `file-${a}`}
+                                        href={archivo.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} transition-colors`}
+                                      >
+                                        {archivo.tipo?.includes('pdf') ? (
+                                          <FileIcon className="w-4 h-4 text-red-500" />
+                                        ) : (
+                                          <Code className="w-4 h-4 text-blue-500" />
+                                        )}
+                                        <span className="text-sm">{archivo.nombre}</span>
+                                      </a>
+                                    ) : null
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {/* Fechas */}
+                              <div className={`flex gap-4 mt-4 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                {tarea.fechaProgramada && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-4 h-4" />
+                                    {formatDateSafely(tarea.fechaProgramada, {
+                                      day: 'numeric',
+                                      month: 'short'
+                                    })}
+                                  </span>
+                                )}
+                                {tarea.fechaLimite && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-4 h-4" />
+                                    Límite: {formatDateSafely(tarea.fechaLimite, {
+                                      day: 'numeric',
+                                      month: 'short'
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      )
+                    } catch (err) {
+                      console.error('Error rendering task card:', err);
+                      return null;
+                    }
                   })
                 )}
               </div>
@@ -1711,15 +1826,7 @@ export default function Home() {
                       </div>
                       <div className="text-white">
                         <h3 className="font-bold text-xl">Cuento del Día</h3>
-                        <p className="text-sm opacity-90">
-                          {new Date().toLocaleDateString('es-MX', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric',
-                            timeZone: MEXICO_TIMEZONE
-                          })}
-                        </p>
+                        <p className="text-sm opacity-90">{currentDateLabel || 'Fecha no disponible'}</p>
                       </div>
                     </div>
                     <Button
@@ -1841,28 +1948,28 @@ export default function Home() {
                     <SelectValue placeholder="Seleccionar campo formativo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="campo-lenguajes">
+                    <SelectItem value="campo-lenguajes" textValue="Lenguajes">
                       <div className="flex items-center gap-2">
                         <span>🗣️</span>
                         <span>Lenguajes</span>
                         <span className="text-xs text-slate-400 ml-2">(Español, Inglés, Artes)</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="campo-saberes">
+                    <SelectItem value="campo-saberes" textValue="Saberes y Pensamiento Científico">
                       <div className="flex items-center gap-2">
                         <span>🔬</span>
                         <span>Saberes y Pensamiento Científico</span>
                         <span className="text-xs text-slate-400 ml-2">(Matemáticas, Ciencias)</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="campo-etica">
+                    <SelectItem value="campo-etica" textValue="Etica, Naturaleza y Sociedades">
                       <div className="flex items-center gap-2">
                         <span>🌍</span>
                         <span>Ética, Naturaleza y Sociedades</span>
                         <span className="text-xs text-slate-400 ml-2">(Historia, Geografía, Cívica)</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="campo-humano">
+                    <SelectItem value="campo-humano" textValue="De lo Humano y lo Comunitario">
                       <div className="flex items-center gap-2">
                         <span>❤️</span>
                         <span>De lo Humano y lo Comunitario</span>
@@ -1911,7 +2018,7 @@ export default function Home() {
                 <Label>Fecha Programada (CDMX)</Label>
                 <Input
                   type="datetime-local"
-                  value={editingTarea?.fechaProgramada ? new Date(editingTarea.fechaProgramada).toISOString().slice(0, 16) : nuevaTarea.fechaProgramada}
+                  value={editingTarea?.fechaProgramada ? toDatetimeLocalValue(editingTarea.fechaProgramada) : nuevaTarea.fechaProgramada}
                   onChange={(e) => {
                     if (editingTarea) {
                       setEditingTarea({ ...editingTarea, fechaProgramada: e.target.value })
@@ -2411,4 +2518,3 @@ export default function Home() {
     </div>
   )
 }
-// force reload

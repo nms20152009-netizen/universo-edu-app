@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
-// Base de conocimiento para 6to grado - SEP / CONALITEG
 const conocimientoSextoGrado = `
 ## CONTEXTO EDUCATIVO - 6to Grado de Primaria (México)
 
@@ -46,7 +44,6 @@ const conocimientoSextoGrado = `
 - Formación Cívica: Derechos humanos, democracia, valores
 `
 
-// Función para reintentos con backoff exponencial
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   maxRetries: number = 3,
@@ -63,7 +60,6 @@ async function retryWithBackoff<T>(
       
       if (attempt < maxRetries - 1) {
         const delay = initialDelay * Math.pow(2, attempt)
-        console.log(`Retrying in ${delay}ms...`)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
@@ -80,7 +76,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    // System prompt para EDU
     const systemPrompt = `Eres EDU, el asistente educativo de UNIVERSO EDU para estudiantes de 6to grado de primaria en México (11-12 años).
 
 ${conocimientoSextoGrado}
@@ -99,39 +94,50 @@ ${conocimientoSextoGrado}
 5. Guía al estudiante paso a paso, no des respuestas completas
 6. Mantén las respuestas concisas (máximo 3-4 párrafos)`
 
-    // Construir historial de conversación
     const conversationHistory = messages
       .slice(-6)
       .map((m: Message) => ({
-        role: m.role as 'user' | 'assistant',
+        role: m.role === 'assistant' ? 'assistant' : 'user',
         content: m.content
       }))
 
-    // Usar reintentos para mayor confiabilidad
-    const response = await retryWithBackoff(async () => {
-      const zai = await ZAI.create()
-      
-      return await zai.chat.completions.create({
-        messages: [
-          { role: 'assistant', content: systemPrompt },
-          ...conversationHistory,
-          { role: 'user', content: message }
-        ],
-        thinking: { type: 'disabled' }
-      })
-    }, 3, 2000)
+    const assistantMessage = await retryWithBackoff(async () => {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://universo-edu-app.vercel.app/",
+          "X-Title": "Universo Edu",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          "model": "google/gemini-2.0-flash-001",
+          "messages": [
+            { "role": "system", "content": systemPrompt },
+            ...conversationHistory,
+            { "role": "user", "content": message }
+          ]
+        })
+      });
 
-    const assistantMessage = response.choices[0]?.message?.content || 
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0]?.message?.content || "";
+    }, 3, 2000);
+
+    const finalMessage = assistantMessage || 
       'Lo siento, no pude procesar tu pregunta en este momento. Por favor intenta de nuevo. 🤔'
 
-    return NextResponse.json({ response: assistantMessage })
+    return NextResponse.json({ response: finalMessage })
 
   } catch (error) {
     console.error('Chat API error:', error)
-    
-    // Respuesta de fallback más amigable
     return NextResponse.json({ 
-      response: '¡Ups! 😅 Tuve un problema para conectarme. Por favor intenta tu pregunta de nuevo. Si el problema persiste, espera unos segundos y vuelve a intentar.' 
+      response: '¡Ups! 😅 Tuve un problema para conectarme. Por favor intenta tu pregunta de nuevo.' 
     })
   }
 }
+

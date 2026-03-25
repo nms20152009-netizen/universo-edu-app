@@ -102,7 +102,13 @@
 }
 
 .premium-card {
-  @apply glass-panel rounded-xl transition-all duration-300;
+  background: rgba(10, 10, 10, 0.4);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  border-radius: 0.75rem;
+  transition: all 300ms;
 }
 
 .premium-card:hover {
@@ -160,4 +166,3 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #F9E27D;
 }
-

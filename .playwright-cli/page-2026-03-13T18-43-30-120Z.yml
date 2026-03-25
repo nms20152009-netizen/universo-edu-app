@@ -1,0 +1,131 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e6] [cursor=pointer]:
+          - img "UNIVERSO EDU" [ref=e8]
+          - generic [ref=e9]:
+            - heading "UNIVERSO EDU" [level=1] [ref=e10]
+            - paragraph [ref=e11]: "Hora CDMX: 12:43:29 p.m."
+        - navigation [ref=e12]:
+          - button "Inicio" [ref=e13]:
+            - img
+            - text: Inicio
+          - button "Tareas" [ref=e14]:
+            - img
+            - text: Tareas
+          - button "Libros SEP" [ref=e15]:
+            - img
+            - text: Libros SEP
+          - button "Chat con EDU" [ref=e16]:
+            - img
+            - text: Chat con EDU
+          - button "Cuentos" [ref=e17]:
+            - img
+            - text: Cuentos
+        - generic [ref=e18]:
+          - button [ref=e19]:
+            - img
+          - button [ref=e20]:
+            - img
+    - generic [ref=e24]:
+      - text: 📢 Cargando...
+      - generic [ref=e25]: ★
+      - text: 📢 Cargando...
+      - generic [ref=e26]: ★
+      - text: 📢 Cargando...
+      - generic [ref=e27]: ★
+      - text: 📢 Cargando...
+      - generic [ref=e28]: ★
+    - main [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e36]:
+              - img
+              - text: Basado en el Programa SEP Fase 5
+            - heading "¡Bienvenido a UNIVERSO EDU!" [level=2] [ref=e37]
+            - paragraph [ref=e38]:
+              - text: Tu compañero de aprendizaje para 6to grado. Conoce los
+              - strong [ref=e39]: 4 Campos Formativos
+              - text: de la SEP, accede a los libros de CONALITEG y chatea con EDU.
+            - generic [ref=e40]:
+              - button "Chatear con EDU" [ref=e41]:
+                - img
+                - text: Chatear con EDU
+              - button "Ver Tareas" [ref=e42]:
+                - img
+                - text: Ver Tareas
+              - button "Ver Libros SEP" [ref=e43]:
+                - img
+                - text: Ver Libros SEP
+          - img "Niños aprendiendo" [ref=e46]
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - heading "Campos Formativos SEP" [level=3] [ref=e49]
+            - paragraph [ref=e50]: Programa Sintético Fase 5 - Educación Primaria
+          - generic [ref=e51]:
+            - generic [ref=e56] [cursor=pointer]:
+              - generic [ref=e57]: 🗣️
+              - generic [ref=e58]:
+                - heading "Lenguajes" [level=4] [ref=e59]
+                - paragraph [ref=e60]:
+                  - text: "Incluye principalmente:"
+                  - strong [ref=e61]: Español, Lenguas indígenas (cuando aplique), Inglés y Artes
+                  - text: (música, danza, teatro, artes visuales, etc.).
+                - paragraph [ref=e62]: Se enfoca en desarrollar la comunicación, la expresión, la creatividad y el uso de diferentes lenguajes para entender y transformar el mundo.
+                - generic [ref=e64]: 0 tareas
+            - generic [ref=e69] [cursor=pointer]:
+              - generic [ref=e70]: 🔬
+              - generic [ref=e71]:
+                - heading "Saberes y Pensamiento Científico" [level=4] [ref=e72]
+                - paragraph [ref=e73]:
+                  - text: "Reúne:"
+                  - strong [ref=e74]: Matemáticas, Ciencias Naturales
+                  - text: (biología, física, química)
+                  - strong [ref=e75]: y Tecnologías
+                  - text: .
+                - paragraph [ref=e76]: Busca fomentar el pensamiento lógico, la indagación científica, la resolución de problemas y la comprensión del mundo natural y tecnológico.
+                - generic [ref=e78]: 0 tareas
+            - generic [ref=e83] [cursor=pointer]:
+              - generic [ref=e84]: 🌍
+              - generic [ref=e85]:
+                - heading "Ética, Naturaleza y Sociedades" [level=4] [ref=e86]
+                - paragraph [ref=e87]:
+                  - text: "Integra:"
+                  - strong [ref=e88]: Formación Cívica y Ética, Historia y Geografía
+                  - text: .
+                - paragraph [ref=e89]: Promueve el análisis crítico de la realidad social, histórica y ambiental, el respeto a los derechos humanos, la justicia, la interculturalidad y el cuidado del planeta.
+                - generic [ref=e91]: 0 tareas
+            - generic [ref=e96] [cursor=pointer]:
+              - generic [ref=e97]: ❤️
+              - generic [ref=e98]:
+                - heading "De lo Humano y lo Comunitario" [level=4] [ref=e99]
+                - paragraph [ref=e100]:
+                  - text: "Engloba:"
+                  - strong [ref=e101]: Educación Física, Vida Saludable y aspectos Socioemocionales
+                  - text: .
+                - paragraph [ref=e102]: Se centra en el bienestar personal y colectivo, el autocuidado, la convivencia, las emociones, la actividad física y el fortalecimiento de la identidad y los lazos comunitarios.
+                - generic [ref=e104]: 0 tareas
+        - generic [ref=e106]:
+          - generic [ref=e107]:
+            - heading "📚 Libros CONALITEG - 6to Grado" [level=3] [ref=e108]
+            - paragraph [ref=e109]: Ciclo Escolar 2025 - 2026
+          - button "Ver todos" [ref=e110]:
+            - text: Ver todos
+            - img
+    - contentinfo [ref=e111]:
+      - generic [ref=e113]:
+        - generic [ref=e114]:
+          - img "UNIVERSO EDU" [ref=e116]
+          - generic [ref=e117]: UNIVERSO EDU
+        - generic [ref=e118]:
+          - generic [ref=e119]: "Hora CDMX: 12:43:29 p.m."
+          - link "Libros CONALITEG" [ref=e120] [cursor=pointer]:
+            - /url: https://libros.conaliteg.gob.mx/primaria.html
+        - generic [ref=e122]:
+          - img
+          - text: SEP Fase 5
+  - region "Notifications (F8)":
+    - list
+  - alert [ref=e123]

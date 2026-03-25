@@ -1,0 +1,162 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e6] [cursor=pointer]:
+          - img "UNIVERSO EDU" [ref=e8]
+          - generic [ref=e9]:
+            - heading "UNIVERSO EDU" [level=1] [ref=e10]
+            - paragraph [ref=e11]: "Hora CDMX: 02:23:37 p.m."
+        - navigation [ref=e12]:
+          - button "Inicio" [ref=e13]:
+            - img
+            - text: Inicio
+          - button "Tareas" [ref=e14]:
+            - img
+            - text: Tareas
+          - button "Libros SEP" [ref=e15]:
+            - img
+            - text: Libros SEP
+          - button "Chat con EDU" [ref=e16]:
+            - img
+            - text: Chat con EDU
+          - button "Cuentos" [ref=e17]:
+            - img
+            - text: Cuentos
+        - generic [ref=e18]:
+          - button [ref=e19]:
+            - img
+          - button [ref=e20]:
+            - img
+    - generic [ref=e24]:
+      - img "Banner" [ref=e122]
+      - text: 📢 EL DÍA LUNES 23, TENDREMOS UN EXPERIMENTO, PEDIRÉ DE FAVOR UNA PILA DE 9V ★ VA SER NUESTRO MATERIAL MÁS IMPORTANTE.
+      - generic [ref=e25]: ★
+      - img "Banner" [ref=e123]
+      - text: 📢 EL DÍA LUNES 23, TENDREMOS UN EXPERIMENTO, PEDIRÉ DE FAVOR UNA PILA DE 9V ★ VA SER NUESTRO MATERIAL MÁS IMPORTANTE.
+      - generic [ref=e26]: ★
+      - img "Banner" [ref=e124]
+      - text: 📢 EL DÍA LUNES 23, TENDREMOS UN EXPERIMENTO, PEDIRÉ DE FAVOR UNA PILA DE 9V ★ VA SER NUESTRO MATERIAL MÁS IMPORTANTE.
+      - generic [ref=e27]: ★
+      - img "Banner" [ref=e125]
+      - text: 📢 EL DÍA LUNES 23, TENDREMOS UN EXPERIMENTO, PEDIRÉ DE FAVOR UNA PILA DE 9V ★ VA SER NUESTRO MATERIAL MÁS IMPORTANTE.
+      - generic [ref=e28]: ★
+    - main [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e127]:
+              - img
+              - text: Basado en el Programa SEP Fase 5
+            - heading "¡Bienvenido a UNIVERSO EDU!" [level=2] [ref=e35]
+            - paragraph [ref=e36]:
+              - text: Tu compañero de aprendizaje para 6to grado. Conoce los
+              - strong [ref=e37]: 4 Campos Formativos
+              - text: de la SEP, accede a los libros de CONALITEG y chatea con EDU.
+            - generic [ref=e38]:
+              - button "Chatear con EDU" [ref=e39]:
+                - img
+                - text: Chatear con EDU
+              - button "Ver Tareas 2" [ref=e128]:
+                - img
+                - text: Ver Tareas
+                - generic [ref=e131]: "2"
+              - button "Ver Libros SEP" [ref=e41]:
+                - img
+                - text: Ver Libros SEP
+          - img "Niños aprendiendo" [ref=e44]
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - heading "Campos Formativos SEP" [level=3] [ref=e47]
+            - paragraph [ref=e48]: Programa Sintético Fase 5 - Educación Primaria
+          - generic [ref=e49]:
+            - generic [ref=e54] [cursor=pointer]:
+              - generic [ref=e55]: 🗣️
+              - generic [ref=e56]:
+                - heading "Lenguajes" [level=4] [ref=e57]
+                - paragraph [ref=e58]:
+                  - text: "Incluye principalmente:"
+                  - strong [ref=e59]: Español, Lenguas indígenas (cuando aplique), Inglés y Artes
+                  - text: (música, danza, teatro, artes visuales, etc.).
+                - paragraph [ref=e60]: Se enfoca en desarrollar la comunicación, la expresión, la creatividad y el uso de diferentes lenguajes para entender y transformar el mundo.
+                - generic [ref=e62]: 0 tareas
+            - generic [ref=e67] [cursor=pointer]:
+              - generic [ref=e68]: 🔬
+              - generic [ref=e69]:
+                - heading "Saberes y Pensamiento Científico" [level=4] [ref=e70]
+                - paragraph [ref=e71]:
+                  - text: "Reúne:"
+                  - strong [ref=e72]: Matemáticas, Ciencias Naturales
+                  - text: (biología, física, química)
+                  - strong [ref=e73]: y Tecnologías
+                  - text: .
+                - paragraph [ref=e74]: Busca fomentar el pensamiento lógico, la indagación científica, la resolución de problemas y la comprensión del mundo natural y tecnológico.
+                - generic [ref=e76]: 2 tareas
+            - generic [ref=e81] [cursor=pointer]:
+              - generic [ref=e82]: 🌍
+              - generic [ref=e83]:
+                - heading "Ética, Naturaleza y Sociedades" [level=4] [ref=e84]
+                - paragraph [ref=e85]:
+                  - text: "Integra:"
+                  - strong [ref=e86]: Formación Cívica y Ética, Historia y Geografía
+                  - text: .
+                - paragraph [ref=e87]: Promueve el análisis crítico de la realidad social, histórica y ambiental, el respeto a los derechos humanos, la justicia, la interculturalidad y el cuidado del planeta.
+                - generic [ref=e89]: 0 tareas
+            - generic [ref=e94] [cursor=pointer]:
+              - generic [ref=e95]: ❤️
+              - generic [ref=e96]:
+                - heading "De lo Humano y lo Comunitario" [level=4] [ref=e97]
+                - paragraph [ref=e98]:
+                  - text: "Engloba:"
+                  - strong [ref=e99]: Educación Física, Vida Saludable y aspectos Socioemocionales
+                  - text: .
+                - paragraph [ref=e100]: Se centra en el bienestar personal y colectivo, el autocuidado, la convivencia, las emociones, la actividad física y el fortalecimiento de la identidad y los lazos comunitarios.
+                - generic [ref=e102]: 0 tareas
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - heading "📚 Libros CONALITEG - 6to Grado" [level=3] [ref=e106]
+              - paragraph [ref=e107]: Ciclo Escolar 2025 - 2026
+            - button "Ver todos" [ref=e108]:
+              - text: Ver todos
+              - img
+          - generic [ref=e132]:
+            - link "Un libro sin recetas, para la maestra y el maestro. Fase 5" [ref=e133] [cursor=pointer]:
+              - /url: https://libros.conaliteg.gob.mx/2025/P5LPM.htm
+              - img [ref=e134]
+              - paragraph [ref=e136]: Un libro sin recetas, para la maestra y el maestro. Fase 5
+            - link "Múltiples lenguajes" [ref=e137] [cursor=pointer]:
+              - /url: https://libros.conaliteg.gob.mx/2025/P6MLA.htm
+              - img [ref=e138]
+              - paragraph [ref=e140]: Múltiples lenguajes
+            - link "Proyectos de Aula" [ref=e141] [cursor=pointer]:
+              - /url: https://libros.conaliteg.gob.mx/2025/P6PAA.htm
+              - img [ref=e142]
+              - paragraph [ref=e144]: Proyectos de Aula
+            - link "Proyectos Comunitarios" [ref=e145] [cursor=pointer]:
+              - /url: https://libros.conaliteg.gob.mx/2025/P6PCA.htm
+              - img [ref=e146]
+              - paragraph [ref=e148]: Proyectos Comunitarios
+            - link "Proyectos Escolares" [ref=e149] [cursor=pointer]:
+              - /url: https://libros.conaliteg.gob.mx/2025/P6PEA.htm
+              - img [ref=e150]
+              - paragraph [ref=e152]: Proyectos Escolares
+            - 'link "Nuestros saberes: Libro para alumnos, maestros y familia" [ref=e153] [cursor=pointer]':
+              - /url: https://libros.conaliteg.gob.mx/2025/P6SDA.htm
+              - img [ref=e154]
+              - paragraph [ref=e156]: "Nuestros saberes: Libro para alumnos, maestros y familia"
+    - contentinfo [ref=e109]:
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - img "UNIVERSO EDU" [ref=e114]
+          - generic [ref=e115]: UNIVERSO EDU
+        - generic [ref=e116]:
+          - generic [ref=e117]: "Hora CDMX: 02:23:37 p.m."
+          - link "Libros CONALITEG" [ref=e118] [cursor=pointer]:
+            - /url: https://libros.conaliteg.gob.mx/primaria.html
+        - generic [ref=e120]:
+          - img
+          - text: SEP Fase 5
+  - region "Notifications (F8)":
+    - list
+  - alert [ref=e121]

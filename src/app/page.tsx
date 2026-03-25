@@ -14,12 +14,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Bot, BookOpen, Sparkles, Send, MessageCircle, 
-  Volume2, RefreshCw, Star, Heart, Trophy, Zap,
-  Menu, X, ChevronRight, Sun, Moon, Settings,
+  RefreshCw, Star, Heart, Trophy, Zap,
+  Menu, X, ChevronRight, Settings,
   Plus, Trash2, Edit, Save, FileText, Image as ImageIcon,
   Video, Link, Clock, Calendar, Upload, Download,
   Lock, Unlock, Eye, Code, FileIcon, ExternalLink,
-  Languages, Microscope, Globe2, Users
+  Languages, Microscope, Globe2, Users, Volume2, VolumeX,
+  Search, Layers
 } from 'lucide-react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -347,17 +348,54 @@ const toDatetimeLocalValue = (value: string | null | undefined) => {
   if (Number.isNaN(date.getTime())) return ''
 
   try {
-    return date.toISOString().slice(0, 16)
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: MEXICO_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(date)
+
+    const read = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? ''
+
+    const year = read('year')
+    const month = read('month')
+    const day = read('day')
+    const hour = read('hour')
+    const minute = read('minute')
+
+    if (!year || !month || !day || !hour || !minute) return ''
+    return `${year}-${month}-${day}T${hour}:${minute}`
   } catch (e) {
     return ''
   }
 }
 
+const isProgramadaVisibleToPublic = (fechaProgramada: string | null | undefined, nowMs = Date.now()) => {
+  if (!fechaProgramada || typeof fechaProgramada !== 'string') return true
+
+  const parsed = new Date(fechaProgramada)
+  if (Number.isNaN(parsed.getTime())) {
+    // Defensa en profundidad: si la fecha es inválida, no la mostramos al público.
+    return false
+  }
+
+  return parsed.getTime() <= nowMs
+}
+
+const ADMIN_TOKEN_KEY = 'universo_admin_token'
+
 export default function Home() {
   // UI States
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode] = useState(true)
   const [activeSection, setActiveSection] = useState('home')
+  const [botOpen, setBotOpen] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
+  const videoRef = useRef<HTMLVideoElement>(null)
   
   // Admin States
   const [isAdmin, setIsAdmin] = useState(false)
@@ -434,6 +472,41 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => {
     setIsMounted(true)
+  }, [])
+
+  const getAdminAuthHeaders = useCallback((): Record<string, string> => {
+    if (typeof window === 'undefined') return {}
+
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }, [])
+
+  useEffect(() => {
+    const restoreAdminSession = async () => {
+      if (typeof window === 'undefined') return
+
+      const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+      if (!token) return
+
+      try {
+        const response = await fetch('/api/admin', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+        const data = await response.json()
+
+        if (data?.authenticated) {
+          setIsAdmin(true)
+        } else {
+          localStorage.removeItem(ADMIN_TOKEN_KEY)
+        }
+      } catch (error) {
+        console.error('Error restoring admin session:', error)
+      }
+    }
+
+    restoreAdminSession()
   }, [])
 
   // Cargar contenido cuando se edita una tarea (se dispara desde el botón de editar)
@@ -585,8 +658,15 @@ export default function Home() {
     
     const fetchTareas = async () => {
       try {
-        const url = selectedCampo !== 'all' ? `/api/tareas?campoId=${selectedCampo}` : '/api/tareas'
-        const response = await fetch(url)
+        const params = new URLSearchParams()
+        if (selectedCampo !== 'all') params.set('campoId', selectedCampo)
+        if (!isAdmin) params.set('activas', 'true')
+
+        const url = `/api/tareas${params.toString() ? `?${params.toString()}` : ''}`
+        const response = await fetch(url, {
+          headers: getAdminAuthHeaders(),
+          cache: 'no-store'
+        })
         if (!response.ok) throw new Error('API Error')
         const data = await response.json()
         if (mounted) {
@@ -600,13 +680,20 @@ export default function Home() {
     fetchTareas()
     
     return () => { mounted = false }
-  }, [selectedCampo])
+  }, [selectedCampo, isAdmin, getAdminAuthHeaders])
   
   // Función para recargar tareas manualmente
   const refreshTareas = async () => {
     try {
-      const url = selectedCampo !== 'all' ? `/api/tareas?campoId=${selectedCampo}` : '/api/tareas'
-      const response = await fetch(url)
+      const params = new URLSearchParams()
+      if (selectedCampo !== 'all') params.set('campoId', selectedCampo)
+      if (!isAdmin) params.set('activas', 'true')
+
+      const url = `/api/tareas${params.toString() ? `?${params.toString()}` : ''}`
+      const response = await fetch(url, {
+        headers: getAdminAuthHeaders(),
+        cache: 'no-store'
+      })
       if (!response.ok) throw new Error('API Error')
       const data = await response.json()
       setTareas(Array.isArray(data) ? data.map(normalizeTarea) : [])
@@ -615,6 +702,14 @@ export default function Home() {
       setTareas([])
     }
   }
+
+  const tareasVisiblesEnGrid = (() => {
+    if (!Array.isArray(tareas)) return []
+    if (isAdmin) return tareas
+
+    const nowMs = Date.now()
+    return tareas.filter((tarea) => isProgramadaVisibleToPublic(tarea?.fechaProgramada, nowMs))
+  })()
 
   // Auto scroll chat
   useEffect(() => {
@@ -632,6 +727,9 @@ export default function Home() {
       const data = await response.json()
       
       if (data.success) {
+        if (typeof window !== 'undefined' && data.token) {
+          localStorage.setItem(ADMIN_TOKEN_KEY, data.token)
+        }
         setIsAdmin(true)
         setAdminDialogOpen(false)
         setAdminPassword('')
@@ -716,7 +814,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/tareas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
           ...nuevaTarea,
           descripcion: editorContent
@@ -761,7 +859,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/tareas', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
         body: JSON.stringify({
           id: editingTarea.id,
           titulo: editingTarea.titulo,
@@ -796,7 +894,10 @@ export default function Home() {
     if (!shouldDelete) return
     
     try {
-      const response = await fetch(`/api/tareas?id=${id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/tareas?id=${id}`, {
+        method: 'DELETE',
+        headers: getAdminAuthHeaders()
+      })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         console.error('Error deleting tarea:', errorData)
@@ -859,18 +960,45 @@ export default function Home() {
   }
 
   return (
-    <div className={`min-h-screen flex flex-col ${darkMode ? 'dark bg-slate-900' : 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50'}`}>
+    <div className="relative min-h-screen flex flex-col overflow-hidden bg-[#050505] text-slate-100">
+      {/* Premium Background Video */}
+      <div className="bg-video-container">
+        <video
+          ref={videoRef}
+          className="bg-video opacity-60"
+          autoPlay
+          loop
+          muted={isMuted}
+          playsInline
+          poster="/universe-loop-poster.png"
+        >
+          <source src="/universe-loop.webm" type="video/webm" />
+          <source src="/universe-loop.mp4" type="video/mp4" />
+        </video>
+        <div className="video-overlay" />
+      </div>
+
+      {/* Audio Toggle */}
+      <Button
+        onClick={() => setIsMuted(!isMuted)}
+        className="fixed bottom-6 right-6 z-50 glass-panel p-4 rounded-full hover:scale-110 transition-transform border-gold-metallic/30"
+        variant="ghost"
+        size="icon"
+      >
+        {isMuted ? <VolumeX className="w-6 h-6 text-gold-metallic" /> : <Volume2 className="w-6 h-6 text-gold-metallic" />}
+      </Button>
+
       {/* Header */}
-      <header className={`sticky top-0 z-50 ${darkMode ? 'bg-slate-800/95' : 'bg-white/95'} backdrop-blur-md shadow-lg border-b ${darkMode ? 'border-slate-700' : 'border-purple-100'}`}>
+      <header className="sticky top-0 z-50 glass-panel border-b border-gold-metallic/20">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-20">
             {/* Logo */}
             <motion.div 
               className="flex items-center gap-3 cursor-pointer"
               whileHover={{ scale: 1.02 }}
               onClick={() => navigateTo('home')}
             >
-              <div className="relative w-12 h-12">
+              <div className="relative w-14 h-14">
                 <Image
                   src="/mascot-owl.png"
                   alt="UNIVERSO EDU"
@@ -879,11 +1007,11 @@ export default function Home() {
                 />
               </div>
               <div>
-                <h1 className={`text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent`}>
+                <h1 className="text-2xl font-bold gold-text tracking-tighter">
                   UNIVERSO EDU
                 </h1>
-                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Hora CDMX: {currentTime}
+                <p className="text-[10px] text-gold-metallic/60 uppercase tracking-widest font-medium">
+                  {currentDateLabel} • {currentTime}
                 </p>
               </div>
             </motion.div>
@@ -894,7 +1022,6 @@ export default function Home() {
                 { id: 'home', label: 'Inicio', icon: <Star className="w-4 h-4" /> },
                 { id: 'tareas', label: 'Tareas', icon: <BookOpen className="w-4 h-4" /> },
                 { id: 'libros', label: 'Libros SEP', icon: <FileText className="w-4 h-4" /> },
-                { id: 'chat', label: 'Chat con EDU', icon: <Bot className="w-4 h-4" /> },
                 { id: 'cuentos', label: 'Cuentos', icon: <Sparkles className="w-4 h-4" /> }
               ].map((item) => (
                 <Button
@@ -949,15 +1076,6 @@ export default function Home() {
                 </DialogContent>
               </Dialog>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDarkMode(!darkMode)}
-                className={darkMode ? 'text-yellow-400' : 'text-slate-600'}
-              >
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </Button>
-              
               {/* Mobile menu button */}
               <Button
                 variant="ghost"
@@ -984,7 +1102,6 @@ export default function Home() {
                     { id: 'home', label: 'Inicio', icon: <Star className="w-4 h-4" /> },
                     { id: 'tareas', label: 'Tareas', icon: <BookOpen className="w-4 h-4" /> },
                     { id: 'libros', label: 'Libros SEP', icon: <FileText className="w-4 h-4" /> },
-                    { id: 'chat', label: 'Chat con EDU', icon: <Bot className="w-4 h-4" /> },
                     { id: 'cuentos', label: 'Cuentos', icon: <Sparkles className="w-4 h-4" /> }
                   ].map((item) => (
                     <Button
@@ -1070,251 +1187,80 @@ export default function Home() {
               className="space-y-12"
             >
               {/* Hero */}
-              <section className="relative overflow-hidden">
-                <div className={`rounded-3xl ${darkMode ? 'bg-gradient-to-r from-slate-800 via-purple-900/50 to-slate-800' : 'bg-gradient-to-r from-indigo-100 via-purple-100 to-pink-100'} p-8 md:p-12`}>
-                  <div className="flex flex-col lg:flex-row items-center gap-8">
-                    <div className="flex-1 text-center lg:text-left">
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring', bounce: 0.5 }}
-                      >
-                        <Badge className="mb-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white border-0 px-4 py-1">
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Basado en el Programa SEP Fase 5
-                        </Badge>
-                      </motion.div>
-                      
-                      <h2 className={`text-4xl md:text-5xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                        ¡Bienvenido a <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">UNIVERSO EDU</span>!
-                      </h2>
-                      
-                      <p className={`text-lg mb-6 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                        Tu compañero de aprendizaje para 6to grado. Conoce los <strong>4 Campos Formativos</strong> de la SEP, 
-                        accede a los libros de CONALITEG y chatea con EDU.
-                      </p>
-                      
-                      <div className="flex flex-wrap justify-center lg:justify-start gap-4">
-                        <Button 
-                          onClick={() => navigateTo('chat')}
-                          className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-90 text-white px-8 py-6 text-lg rounded-2xl shadow-lg shadow-purple-500/25"
-                        >
-                          <Bot className="w-5 h-5 mr-2" />
-                          Chatear con EDU
-                        </Button>
-                        <Button 
-                          onClick={() => navigateTo('tareas')}
-                          variant="outline"
-                          className={`relative px-8 py-6 text-lg rounded-2xl ${darkMode ? 'border-green-500 text-green-300' : 'border-green-400 text-green-600 hover:bg-green-50'}`}
-                        >
-                          <BookOpen className="w-5 h-5 mr-2" />
-                          Ver Tareas
-                          {/* Indicador pulsante para tareas nuevas */}
-                          {tareas.length > 0 && (
-                            <motion.span
-                              className="absolute -top-2 -right-2 flex h-5 w-5"
-                              initial={{ scale: 0.8, opacity: 0.5 }}
-                              animate={{ scale: 1.2, opacity: 1 }}
-                              transition={{ repeat: Infinity, repeatType: 'reverse', duration: 0.8 }}
-                            >
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-5 w-5 bg-green-500 text-white text-xs items-center justify-center font-bold">
-                                {tareas.length > 9 ? '9+' : tareas.length}
-                              </span>
-                            </motion.span>
-                          )}
-                        </Button>
-                        <Button 
-                          onClick={() => navigateTo('libros')}
-                          variant="outline"
-                          className={`px-8 py-6 text-lg rounded-2xl ${darkMode ? 'border-purple-500 text-purple-300' : 'border-purple-300 text-purple-600'}`}
-                        >
-                          <FileText className="w-5 h-5 mr-2" />
-                          Ver Libros SEP
-                        </Button>
-                      </div>
-                    </div>
+              <section className="relative px-6 py-16 md:py-24">
+                <div className="max-w-4xl mx-auto text-center">
+                  <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8 }}
+                  >
+                    <Badge className="mb-6 bg-gold-metallic/10 text-gold-metallic border border-gold-metallic/30 px-6 py-2 rounded-full backdrop-blur-md">
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      PLATAFORMA PREMIUM FASE 5
+                    </Badge>
                     
-                    <motion.div 
-                      className="flex-1 relative"
-                      animate={{ y: [0, -10, 0] }}
-                      transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                    >
-                      <div className="relative w-72 h-72 md:w-96 md:h-96 mx-auto">
-                        <Image
-                          src="/hero-children.png"
-                          alt="Niños aprendiendo"
-                          fill
-                          className="object-contain drop-shadow-2xl"
-                        />
-                      </div>
-                    </motion.div>
-                  </div>
+                    <h2 className="text-5xl md:text-7xl font-bold mb-8 tracking-tight">
+                      EL <span className="gold-text">UNIVERSO</span> DEL APRENDIZAJE
+                    </h2>
+                    
+                    <p className="text-xl md:text-2xl mb-12 text-slate-300/80 font-light leading-relaxed max-w-2xl mx-auto">
+                      Experiencia educativa de elite para 6to grado. Descubre el conocimiento con elegancia y tecnología.
+                    </p>
+                    
+                    <div className="flex flex-wrap justify-center gap-6">
+                      <Button 
+                        onClick={() => setBotOpen(true)}
+                        className="bg-gold-metallic hover:bg-gold-metallic/90 text-black px-10 py-7 text-lg rounded-full font-bold transition-all hover:scale-105 shadow-[0_0_30px_rgba(212,175,55,0.3)]"
+                      >
+                        <Bot className="w-5 h-5 mr-2" />
+                        INTERACTUAR CON EDU
+                      </Button>
+                      <Button 
+                        onClick={() => navigateTo('tareas')}
+                        className="glass-panel text-gold-metallic border-gold-metallic/20 px-10 py-7 text-lg rounded-full font-bold hover:bg-gold-metallic/10 transition-all hover:scale-105"
+                      >
+                        <BookOpen className="w-5 h-5 mr-2" />
+                        EXPLORAR TAREAS
+                      </Button>
+                    </div>
+                  </motion.div>
                 </div>
               </section>
 
               {/* Campos Formativos SEP */}
-              <section>
-                <div className="text-center mb-6">
-                  <h3 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                    Campos Formativos SEP
-                  </h3>
-                  <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Programa Sintético Fase 5 - Educación Primaria
-                  </p>
+              <section className="py-12">
+                <div className="text-center mb-16">
+                  <h3 className="text-3xl font-bold mb-4 gold-text">CAMPOS FORMATIVOS</h3>
+                  <div className="w-24 h-1 bg-gold-metallic mx-auto opacity-30"></div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Lenguajes */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedCampo('campo-lenguajes')
-                      navigateTo('tareas')
-                    }}
-                  >
-                    <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} hover:shadow-xl transition-all duration-300 overflow-hidden h-full`}>
-                      <div className="h-2 bg-pink-500"></div>
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="text-5xl">🗣️</div>
-                          <div className="flex-1">
-                            <h4 className={`font-bold text-lg mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              Lenguajes
-                            </h4>
-                            <p className={`text-sm mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                              Incluye principalmente: <strong>Español, Lenguas indígenas (cuando aplique), Inglés y Artes</strong> (música, danza, teatro, artes visuales, etc.).
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Se enfoca en desarrollar la comunicación, la expresión, la creatividad y el uso de diferentes lenguajes para entender y transformar el mundo.
-                            </p>
-                            <div className="mt-3 flex items-center justify-between">
-                              <Badge variant="outline" className="border-pink-500 text-pink-500">
-                                {camposFormativos.find(c => c.id === 'campo-lenguajes')?._count?.tareas || 0} tareas
-                              </Badge>
-                            </div>
-                          </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {Object.entries(CAMPOS_FORMATIVOS_SEP).map(([key, info], i) => (
+                    <motion.div
+                      key={key}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 * i }}
+                      whileHover={{ scale: 1.05 }}
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setSelectedCampo(key)
+                        navigateTo('tareas')
+                      }}
+                    >
+                      <div className="premium-card p-8 h-full flex flex-col items-center text-center">
+                        <div className="text-6xl mb-6 filter drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+                          {info.icono}
                         </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-
-                  {/* Saberes y Pensamiento Científico */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedCampo('campo-saberes')
-                      navigateTo('tareas')
-                    }}
-                  >
-                    <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} hover:shadow-xl transition-all duration-300 overflow-hidden h-full`}>
-                      <div className="h-2 bg-blue-500"></div>
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="text-5xl">🔬</div>
-                          <div className="flex-1">
-                            <h4 className={`font-bold text-lg mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              Saberes y Pensamiento Científico
-                            </h4>
-                            <p className={`text-sm mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                              Reúne: <strong>Matemáticas, Ciencias Naturales</strong> (biología, física, química) <strong>y Tecnologías</strong>.
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Busca fomentar el pensamiento lógico, la indagación científica, la resolución de problemas y la comprensión del mundo natural y tecnológico.
-                            </p>
-                            <div className="mt-3 flex items-center justify-between">
-                              <Badge variant="outline" className="border-blue-500 text-blue-500">
-                                {camposFormativos.find(c => c.id === 'campo-saberes')?._count?.tareas || 0} tareas
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-
-                  {/* Ética, Naturaleza y Sociedades */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedCampo('campo-etica')
-                      navigateTo('tareas')
-                    }}
-                  >
-                    <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} hover:shadow-xl transition-all duration-300 overflow-hidden h-full`}>
-                      <div className="h-2 bg-green-500"></div>
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="text-5xl">🌍</div>
-                          <div className="flex-1">
-                            <h4 className={`font-bold text-lg mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              Ética, Naturaleza y Sociedades
-                            </h4>
-                            <p className={`text-sm mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                              Integra: <strong>Formación Cívica y Ética, Historia y Geografía</strong>.
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Promueve el análisis crítico de la realidad social, histórica y ambiental, el respeto a los derechos humanos, la justicia, la interculturalidad y el cuidado del planeta.
-                            </p>
-                            <div className="mt-3 flex items-center justify-between">
-                              <Badge variant="outline" className="border-green-500 text-green-500">
-                                {camposFormativos.find(c => c.id === 'campo-etica')?._count?.tareas || 0} tareas
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-
-                  {/* De lo Humano y lo Comunitario */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    whileHover={{ scale: 1.02 }}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedCampo('campo-humano')
-                      navigateTo('tareas')
-                    }}
-                  >
-                    <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} hover:shadow-xl transition-all duration-300 overflow-hidden h-full`}>
-                      <div className="h-2 bg-orange-500"></div>
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="text-5xl">❤️</div>
-                          <div className="flex-1">
-                            <h4 className={`font-bold text-lg mb-2 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              De lo Humano y lo Comunitario
-                            </h4>
-                            <p className={`text-sm mb-2 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                              Engloba: <strong>Educación Física, Vida Saludable y aspectos Socioemocionales</strong>.
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Se centra en el bienestar personal y colectivo, el autocuidado, la convivencia, las emociones, la actividad física y el fortalecimiento de la identidad y los lazos comunitarios.
-                            </p>
-                            <div className="mt-3 flex items-center justify-between">
-                              <Badge variant="outline" className="border-orange-500 text-orange-500">
-                                {camposFormativos.find(c => c.id === 'campo-humano')?._count?.tareas || 0} tareas
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
+                        <h4 className="font-bold text-xl mb-4 text-gold-metallic">
+                          {info.nombre}
+                        </h4>
+                        <p className="text-sm text-slate-400 font-light leading-relaxed">
+                          {info.incluye}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               </section>
 
@@ -1361,21 +1307,17 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-8"
+              className="space-y-12"
             >
-              <div className="text-center">
-                <Badge className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-0 mb-3">
-                  CONALITEG - Ciclo 2025-2026
+              <div className="text-center mb-16">
+                <Badge className="bg-gold-metallic/10 text-gold-metallic border border-gold-metallic/30 px-6 py-2 rounded-full mb-4">
+                  BIBLIOTECA CONALITEG 2025
                 </Badge>
-                <h2 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                  Libros de Texto Gratuitos
-                </h2>
-                <p className={`mt-2 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                  Haz clic en cualquier libro para abrirlo en línea
-                </p>
+                <h2 className="text-4xl md:text-5xl font-bold gold-text">LIBROS DE TEXTO</h2>
+                <div className="w-24 h-1 bg-gold-metallic mx-auto mt-6 opacity-30"></div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {librosCONALITEG.map((libro, index) => (
                   <motion.a
                     key={libro.codigo}
@@ -1384,65 +1326,35 @@ export default function Home() {
                     rel="noopener noreferrer"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ scale: 1.02 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group"
                   >
-                    <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} hover:shadow-xl transition-all duration-300 overflow-hidden h-full`}>
-                      <div className="h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="w-16 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <BookOpen className="w-8 h-8 text-purple-600" />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className={`font-bold mb-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                              {libro.titulo}
-                            </h3>
-                            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                              Código: {libro.codigo}
-                            </p>
-                            <Badge variant="outline" className="mt-2">
-                              6° Grado
-                            </Badge>
+                    <div className="premium-card h-full transition-all duration-500 group-hover:scale-[1.03] group-hover:border-gold-metallic/50 overflow-hidden">
+                      <div className="p-8 flex items-start gap-6">
+                        <div className="w-20 h-28 bg-gradient-to-br from-gold-metallic/20 to-transparent rounded-lg flex items-center justify-center flex-shrink-0 border border-gold-metallic/10 group-hover:border-gold-metallic/30 transition-colors">
+                          <BookOpen className="w-10 h-10 text-gold-metallic" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-xl mb-2 text-white group-hover:text-gold-metallic transition-colors">
+                            {libro.titulo}
+                          </h3>
+                          <Badge variant="outline" className="border-gold-metallic/20 text-gold-metallic/60 text-xs">
+                            CÓDIGO: {libro.codigo}
+                          </Badge>
+                          <div className="mt-6 flex items-center text-gold-metallic text-sm font-medium opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0">
+                            LECTURA DIGITAL
+                            <ExternalLink className="w-4 h-4 ml-2" />
                           </div>
                         </div>
-                        <div className="mt-4 flex items-center text-purple-500 text-sm">
-                          <ExternalLink className="w-4 h-4 mr-1" />
-                          Abrir libro en línea
-                        </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   </motion.a>
                 ))}
               </div>
-
-              {/* Info sobre los campos formativos */}
-              <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50'} border-0`}>
-                <CardContent className="p-6">
-                  <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                    ¿Cómo se relacionan los libros con los Campos Formativos?
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { campo: '🗣️ Lenguajes', libros: 'Múltiples lenguajes, Trazos y palabras' },
-                      { campo: '🔬 Saberes y Pensamiento Científico', libros: 'Nuestros saberes, Proyectos de Aula' },
-                      { campo: '🌍 Ética, Naturaleza y Sociedades', libros: 'Proyectos Comunitarios' },
-                      { campo: '❤️ De lo Humano y lo Comunitario', libros: 'Proyectos Escolares' }
-                    ].map((item) => (
-                      <div key={item.campo} className={`p-4 rounded-xl ${darkMode ? 'bg-slate-700' : 'bg-white'}`}>
-                        <p className={`font-semibold mb-1 ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                          {item.campo}
-                        </p>
-                        <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                          {item.libros}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
             </motion.div>
           )}
+
+
 
           {/* TAREAS SECTION */}
           {activeSection === 'tareas' && (
@@ -1451,59 +1363,49 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
+              className="space-y-12"
             >
-              {/* Header */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-12">
                 <div>
-                  <h2 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
-                    Tareas por Campo Formativo
-                  </h2>
-                  <p className={`mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-                    Hora CDMX: {currentTime}
+                  <h2 className="text-4xl font-bold gold-text mb-2">TAREAS Y DESAFÍOS</h2>
+                  <p className="text-slate-400 font-light italic">
+                    Cronómetro Estelar: {currentTime}
                   </p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-4 items-center">
                   <Select value={selectedCampo} onValueChange={setSelectedCampo}>
-                    <SelectTrigger className={`w-72 ${darkMode ? 'bg-slate-800 border-slate-700' : ''}`}>
-                      <SelectValue placeholder="Filtrar por campo formativo" />
+                    <SelectTrigger className="w-80 glass-panel border-gold-metallic/20 text-gold-metallic h-12">
+                      <SelectValue placeholder="Filtrar Campo Formativo" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los campos</SelectItem>
-                      <SelectItem value="campo-lenguajes">
-                        🗣️ Lenguajes (Español, Inglés, Artes)
-                      </SelectItem>
-                      <SelectItem value="campo-saberes">
-                        🔬 Saberes y Pensamiento Científico
-                      </SelectItem>
-                      <SelectItem value="campo-etica">
-                        🌍 Ética, Naturaleza y Sociedades
-                      </SelectItem>
-                      <SelectItem value="campo-humano">
-                        ❤️ De lo Humano y lo Comunitario
-                      </SelectItem>
+                    <SelectContent className="glass-panel border-gold-metallic/20">
+                      <SelectItem value="all">Todas las Galaxias</SelectItem>
+                      <SelectItem value="campo-lenguajes">🗣️ Lenguajes</SelectItem>
+                      <SelectItem value="campo-saberes">🔬 Saberes y Ciencia</SelectItem>
+                      <SelectItem value="campo-etica">🌍 Ética y Sociedades</SelectItem>
+                      <SelectItem value="campo-humano">❤️ Humano y Comunitario</SelectItem>
                     </SelectContent>
                   </Select>
                   
                   {isAdmin && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <Button
                         onClick={() => setMarqueeEditorOpen(true)}
                         variant="outline"
-                        className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                        className="glass-panel border-amber-500/30 text-amber-500 hover:bg-amber-500/10 h-12"
                       >
-                        📢 Editar Banner
+                        <Settings className="w-4 h-4 mr-2" />
+                        Avisos
                       </Button>
                       <Button
                         onClick={() => {
                           clearEditor()
                           setTareaEditorOpen(true)
                         }}
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500"
+                        className="bg-gold-metallic hover:bg-gold-metallic/90 text-black font-bold px-6 h-12"
                       >
                         <Plus className="w-4 h-4 mr-2" />
-                        Nueva Tarea
+                        CREAR TAREA
                       </Button>
                     </div>
                   )}
@@ -1511,50 +1413,47 @@ export default function Home() {
               </div>
 
               {/* Tareas Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {!Array.isArray(tareas) || tareas.length === 0 ? (
-                  <div className={`col-span-2 text-center py-12 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                    <BookOpen className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p>No hay tareas disponibles en este momento.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {tareasVisiblesEnGrid.length === 0 ? (
+                  <div className="col-span-2 text-center py-24 glass-panel border-gold-metallic/10">
+                    <BookOpen className="w-20 h-20 mx-auto mb-6 text-gold-metallic/30" />
+                    <p className="text-2xl text-slate-500 font-light">Aún no hay tareas en esta galaxia...</p>
                   </div>
                 ) : (
-                  tareas.map((tarea, index) => {
+                  tareasVisiblesEnGrid.map((tarea, index) => {
                     if (!tarea) return null;
                     try {
                       const campoInfo = getCampoInfo(tarea.campoFormativoId)
                       return (
                         <motion.div
                           key={tarea.id || `tarea-${index}`}
-                          initial={{ opacity: 0, y: 20 }}
+                          initial={{ opacity: 0, y: 30 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.05 }}
+                          transition={{ delay: index * 0.1 }}
+                          whileHover={{ y: -5 }}
                         >
-                          <Card className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white'} overflow-hidden`}>
-                            <div className="h-2" style={{ backgroundColor: campoInfo.color }}></div>
-                            <CardHeader>
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span>{campoInfo.icono}</span>
-                                    <Badge variant="outline" style={{ borderColor: campoInfo.color, color: campoInfo.color }}>
-                                      {campoInfo.nombre}
-                                    </Badge>
-                                  </div>
-                                  <CardTitle className={darkMode ? 'text-white' : ''}>
-                                    {tarea.titulo}
-                                  </CardTitle>
-                                  {tarea.tema && (
-                                    <CardDescription className={darkMode ? 'text-slate-400' : ''}>
-                                      Tema: {tarea.tema}
-                                    </CardDescription>
-                                  )}
+                          <div className="premium-card overflow-hidden h-full flex flex-col">
+                            <div className="h-1" style={{ backgroundColor: campoInfo.color, boxShadow: `0 0 15px ${campoInfo.color}50` }}></div>
+                            
+                            <div className="p-8 flex-1 flex flex-col">
+                              <div className="flex justify-between items-start mb-6">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-3xl filter drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]">{campoInfo.icono}</span>
+                                  <Badge 
+                                    className="bg-transparent border-gold-metallic/30 text-gold-metallic px-4 py-1"
+                                    style={{ borderLeft: `3px solid ${campoInfo.color}` }}
+                                  >
+                                    {campoInfo.nombre.toUpperCase()}
+                                  </Badge>
                                 </div>
+                                
                                 {isAdmin && (
-                                  <div className="flex gap-1">
+                                  <div className="flex gap-2">
                                     <Button
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => loadEditingContent(tarea)}
+                                      className="text-gold-metallic/60 hover:text-gold-metallic hover:bg-gold-metallic/10"
                                     >
                                       <Edit className="w-4 h-4" />
                                     </Button>
@@ -1562,104 +1461,99 @@ export default function Home() {
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => handleDeleteTarea(tarea.id)}
-                                      className="text-red-500"
+                                      className="text-red-500/60 hover:text-red-500 hover:bg-red-500/10"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
                                   </div>
                                 )}
                               </div>
-                            </CardHeader>
-                            <CardContent>
+
+                              <h3 className="text-2xl font-bold mb-3 tracking-tight text-white leading-tight">
+                                {tarea.titulo}
+                              </h3>
+                              
+                              {tarea.tema && (
+                                <p className="text-gold-metallic/80 text-sm font-medium mb-6 uppercase tracking-widest flex items-center gap-2">
+                                  <Sparkles className="w-3 h-3" />
+                                  {tarea.tema}
+                                </p>
+                              )}
+
                               {tarea.descripcion && (
-                                <div className={`mb-4 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-                                  <RenderTareaContent content={tarea.descripcion} darkMode={darkMode} />
+                                <div className="text-slate-300 font-light leading-relaxed mb-8 flex-1">
+                                  <RenderTareaContent content={tarea.descripcion} darkMode={true} />
                                 </div>
                               )}
                               
-                              {/* Imágenes de la base de datos */}
-                              {Array.isArray(tarea.imagenes) && tarea.imagenes.length > 0 && (
-                                <div className="grid grid-cols-2 gap-2 mb-4">
-                                  {ensureArray(tarea.imagenes).map((img, i) => (
-                                    img?.url ? (
-                                      <img 
-                                        key={img.id || `img-${i}`} 
-                                        src={img.url} 
-                                        alt={img.alt || 'Imagen'} 
-                                        className="rounded-lg w-full h-32 object-cover"
-                                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                              {/* Media Grid */}
+                              {(Array.isArray(tarea.imagenes) && tarea.imagenes.length > 0) || (Array.isArray(tarea.videos) && tarea.videos.length > 0) ? (
+                                <div className="space-y-4 mb-8">
+                                  {/* Images */}
+                                  {ensureArray(tarea.imagenes).length > 0 && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                      {ensureArray(tarea.imagenes).map((img, i) => img?.url && (
+                                        <div key={img.id || `img-${i}`} className="group relative rounded-xl overflow-hidden aspect-video border border-white/10">
+                                          <img 
+                                            src={img.url} 
+                                            alt={img.alt || 'Tarea'} 
+                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                          />
+                                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                            <Search className="w-4 h-4 text-white" />
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {/* YouTube */}
+                                  {ensureArray(tarea.videos).map((video, v) => video?.videoId && (
+                                    <div key={video.id || `vid-${v}`} className="aspect-video rounded-xl overflow-hidden border border-white/10 ring-1 ring-gold-metallic/20">
+                                      <iframe
+                                        src={`https://www.youtube.com/embed/${video.videoId}`}
+                                        title={video.titulo || 'Video'}
+                                        className="w-full h-full"
+                                        allowFullScreen
                                       />
-                                    ) : null
+                                    </div>
                                   ))}
                                 </div>
-                              )}
+                              ) : null}
                               
-                              {/* Videos YouTube */}
-                              {Array.isArray(tarea.videos) && tarea.videos.length > 0 && (
-                                <div className="space-y-4 mb-4">
-                                  {tarea.videos.map((video, v) => (
-                                    video?.videoId ? (
-                                      <div key={video.id || `vid-${v}`} className="aspect-video rounded-lg overflow-hidden">
-                                        <iframe
-                                          src={`https://www.youtube.com/embed/${video.videoId}`}
-                                          title={video.titulo || 'Video'}
-                                          className="w-full h-full border-0"
-                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                          allowFullScreen
-                                        />
-                                      </div>
-                                    ) : null
+                              <div className="flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-white/5">
+                                <div className="flex flex-wrap gap-3">
+                                  {ensureArray(tarea.archivos).map((archivo, a) => archivo?.url && (
+                                    <a
+                                      key={archivo.id || `file-${a}`}
+                                      href={archivo.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 px-4 py-2 rounded-full glass-panel border-gold-metallic/10 hover:border-gold-metallic/30 text-sm transition-all text-slate-300 hover:text-white"
+                                    >
+                                      {archivo.tipo?.includes('pdf') ? <FileText className="w-4 h-4 text-red-500" /> : <Layers className="w-4 h-4 text-blue-500" />}
+                                      {archivo.nombre}
+                                    </a>
                                   ))}
                                 </div>
-                              )}
-                              
-                              {/* Archivos */}
-                              {Array.isArray(tarea.archivos) && tarea.archivos.length > 0 && (
-                                <div className="flex flex-wrap gap-2">
-                                  {ensureArray(tarea.archivos).map((archivo, a) => (
-                                    archivo?.url ? (
-                                      <a
-                                        key={archivo.id || `file-${a}`}
-                                        href={archivo.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg ${darkMode ? 'bg-slate-700 hover:bg-slate-600' : 'bg-slate-100 hover:bg-slate-200'} transition-colors`}
-                                      >
-                                        {archivo.tipo?.includes('pdf') ? (
-                                          <FileIcon className="w-4 h-4 text-red-500" />
-                                        ) : (
-                                          <Code className="w-4 h-4 text-blue-500" />
-                                        )}
-                                        <span className="text-sm">{archivo.nombre}</span>
-                                      </a>
-                                    ) : null
-                                  ))}
+
+                                <div className="flex items-center gap-6 text-xs font-medium tracking-wider uppercase text-slate-500">
+                                  {tarea.fechaProgramada && (
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className="w-4 h-4 text-gold-metallic/50" />
+                                      {formatDateSafely(tarea.fechaProgramada, { day: 'numeric', month: 'short' })}
+                                    </div>
+                                  )}
+                                  {tarea.fechaLimite && (
+                                    <div className="flex items-center gap-2 text-gold-metallic">
+                                      <Clock className="w-4 h-4" />
+                                      LÍMITE: {formatDateSafely(tarea.fechaLimite, { day: 'numeric', month: 'short' })}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              
-                              {/* Fechas */}
-                              <div className={`flex gap-4 mt-4 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {tarea.fechaProgramada && (
-                                  <span className="flex items-center gap-1">
-                                    <Calendar className="w-4 h-4" />
-                                    {formatDateSafely(tarea.fechaProgramada, {
-                                      day: 'numeric',
-                                      month: 'short'
-                                    })}
-                                  </span>
-                                )}
-                                {tarea.fechaLimite && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-4 h-4" />
-                                    Límite: {formatDateSafely(tarea.fechaLimite, {
-                                      day: 'numeric',
-                                      month: 'short'
-                                    })}
-                                  </span>
-                                )}
                               </div>
-                            </CardContent>
-                          </Card>
+                            </div>
+                          </div>
                         </motion.div>
                       )
                     } catch (err) {
@@ -1727,32 +1621,6 @@ export default function Home() {
                           }`}>
                             <p className="whitespace-pre-wrap">{message.content}</p>
                           </div>
-                          {message.role === 'assistant' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  const response = await fetch('/api/tts', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ text: message.content })
-                                  })
-                                  const data = await response.json()
-                                  if (data.audio) {
-                                    const audio = new Audio(`data:audio/mp3;base64,${data.audio}`)
-                                    audio.play()
-                                  }
-                                } catch (error) {
-                                  console.error('TTS error:', error)
-                                }
-                              }}
-                              className="mt-2 text-purple-500"
-                            >
-                              <Volume2 className="w-4 h-4 mr-1" />
-                              Escuchar
-                            </Button>
-                          )}
                         </div>
                       </motion.div>
                     ))}
@@ -2484,6 +2352,162 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AnimatePresence>
+        {!botOpen && activeSection === 'home' && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, scale: 0.85, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 12 }}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setBotOpen(true)}
+            className="group fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-full border border-white/10 bg-slate-950/80 px-3 py-2.5 text-left text-white shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
+          >
+            <span className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+              <Image
+                src="/chatbot-character.png"
+                alt="EDU"
+                fill
+                className="object-contain p-1.5"
+              />
+              <span className="absolute inset-x-0 bottom-0 h-1 bg-white/20" />
+            </span>
+            <span className="pr-2">
+              <span className="block text-[10px] uppercase tracking-[0.35em] text-slate-400">EDU</span>
+              <span className="block text-sm font-medium text-slate-100">Abrir asistente</span>
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {botOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 24 }}
+            transition={{ type: 'spring', stiffness: 220, damping: 24 }}
+            className="fixed inset-3 z-50 md:inset-auto md:right-6 md:bottom-6 md:h-[84vh] md:w-[440px] w-[calc(100vw-1.5rem)] h-[calc(100vh-1.5rem)]"
+          >
+            <div className="flex h-full flex-col overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/88 shadow-[0_32px_120px_rgba(0,0,0,0.75)] backdrop-blur-3xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-[20px] border border-white/10 bg-white/5">
+                    <Image
+                      src="/chatbot-character.png"
+                      alt="EDU"
+                      fill
+                      className="object-contain p-1.5"
+                    />
+                  </span>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Asistente</p>
+                    <h3 className="text-lg font-semibold text-white">EDU</h3>
+                    <p className="text-xs text-slate-400">SEP, CONALITEG y tareas de 6to grado</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                    En línea
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setBotOpen(false)}
+                    className="h-10 w-10 rounded-full text-slate-300 hover:bg-white/10 hover:text-white"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center px-4 pt-3">
+                <div className="h-1.5 w-16 rounded-full bg-white/15" />
+              </div>
+
+              <ScrollArea className="flex-1 px-4 py-4">
+                <div className="space-y-4 pb-2">
+                  {chatMessages.map((message, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[86%] ${message.role === 'user' ? 'order-2' : ''}`}>
+                        <div className={`rounded-[22px] px-4 py-3 text-sm leading-relaxed ${
+                          message.role === 'user'
+                            ? 'rounded-br-md border border-fuchsia-400/25 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white shadow-[0_12px_32px_rgba(139,92,246,0.25)]'
+                            : 'rounded-bl-md border border-white/10 bg-white/6 text-slate-100 shadow-[0_12px_32px_rgba(0,0,0,0.25)]'
+                        }`}>
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex justify-start">
+                      <div className="rounded-[22px] border border-white/10 bg-white/6 px-4 py-3">
+                        <div className="flex gap-2">
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '0ms' }} />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-purple-400" style={{ animationDelay: '150ms' }} />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-pink-400" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              </ScrollArea>
+
+              <div className="border-t border-white/10 bg-slate-950/85 p-4">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    sendChatMessage()
+                  }}
+                  className="flex items-end gap-2"
+                >
+                  <div className="flex-1">
+                    <Input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Pregunta sobre matemáticas, historia, ciencias..."
+                      className="h-12 rounded-2xl border-white/10 bg-white/6 text-slate-100 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-violet-400"
+                      disabled={chatLoading}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={!chatInput.trim() || chatLoading}
+                    className="h-12 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-4 shadow-[0_16px_40px_rgba(139,92,246,0.35)]"
+                  >
+                    <Send className="h-5 w-5" />
+                  </Button>
+                </form>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {['¿Qué son las fracciones?', '¿Quién fue Miguel Hidalgo?', 'Explícame los ecosistemas', '¿Qué es la democracia?'].map((suggestion) => (
+                    <Button
+                      key={suggestion}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setChatInput(suggestion)}
+                      className="rounded-full border-white/10 bg-white/5 text-xs text-slate-200 hover:bg-white/10 hover:text-white"
+                    >
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className={`${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-purple-100'} border-t mt-auto`}>

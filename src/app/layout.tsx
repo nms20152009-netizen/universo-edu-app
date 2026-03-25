@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
-import { Nunito, Comic_Neue } from "next/font/google";
+import { Plus_Jakarta_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
 });
 
-const comicNeue = Comic_Neue({
-  variable: "--font-comic",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -38,7 +38,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body
-        className={`${nunito.variable} ${comicNeue.variable} font-sans antialiased`}
+        className={`${plusJakartaSans.variable} ${fraunces.variable} font-sans antialiased`}
       >
         {children}
         <Toaster />

@@ -185,9 +185,21 @@ export async function GET() {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching campos formativos:', error)
-    return NextResponse.json(
-      { error: 'Error al obtener campos formativos' },
-      { status: 500 }
-    )
+    const camposFallback = camposFormativosSEP.map((campo) => ({
+      id: campo.id,
+      nombre: campo.nombre,
+      descripcion: campo.descripcion,
+      color: campo.color,
+      icono: campo.icono,
+      orden: campo.orden,
+      _count: { tareas: 0 }
+    }))
+
+    return NextResponse.json({
+      campos: camposFallback,
+      librosCONALITEG: librosSextoGrado,
+      camposCompletos: camposFormativosSEP,
+      fallback: true
+    })
   }
 }
